@@ -1,0 +1,6 @@
+{
+  "name": "ME416 Stamp Machine Workspace Visualizer",
+  "description": "CAD-accurate 2-DOF robotic arm pick-and-place visualizer for ME416 stamp machine assembly, AprilTag vision calibration, and kinematic trajectory simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

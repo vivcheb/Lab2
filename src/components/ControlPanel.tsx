@@ -1,0 +1,445 @@
+import React, { useState } from 'react';
+import { LogEntry, CyclePhase } from '../types';
+import { ALPHABET_26 } from '../utils/kinematics';
+import {
+  Play,
+  RotateCcw,
+  Home,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
+
+interface ControlPanelProps {
+  selectedLetter: string;
+  onSelectLetter: (letter: string) => void;
+  onRunCycle: () => void;
+  onHomeArm: () => void;
+  onResetPositions: () => void;
+  onClearPaper: () => void;
+  isAnimating: boolean;
+  cyclePhase: CyclePhase;
+  showAprilTags: boolean;
+  onToggleAprilTags: (val: boolean) => void;
+  showReachEnvelope: boolean;
+  onToggleReachEnvelope: (val: boolean) => void;
+  showTrajectoryTrail: boolean;
+  onToggleTrajectoryTrail: (val: boolean) => void;
+  logs: LogEntry[];
+  onClearLogs: () => void;
+  onRunWordSequence: (word: string) => void;
+  manualX: number;
+  manualY: number;
+  onJogCartesian: (x: number, y: number) => void;
+  manualThetaDeg: number;
+  manualReachMm: number;
+  onJogPolar: (thetaDeg: number, reachMm: number) => void;
+}
+
+export const ControlPanel: React.FC<ControlPanelProps> = ({
+  selectedLetter,
+  onSelectLetter,
+  onRunCycle,
+  onHomeArm,
+  onResetPositions,
+  onClearPaper,
+  isAnimating,
+  cyclePhase,
+  showAprilTags,
+  onToggleAprilTags,
+  showReachEnvelope,
+  onToggleReachEnvelope,
+  showTrajectoryTrail,
+  onToggleTrajectoryTrail,
+  logs,
+  onClearLogs,
+  onRunWordSequence,
+  manualX,
+  manualY,
+  onJogCartesian,
+  manualThetaDeg,
+  manualReachMm,
+  onJogPolar,
+}) => {
+  const [wordInput, setWordInput] = useState('ROBOT');
+  const [activeTab, setActiveTab] = useState<'cycle' | 'word' | 'manual'>('cycle');
+
+  const handleWordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wordInput.trim() || isAnimating) return;
+    onRunWordSequence(wordInput.trim().toUpperCase());
+  };
+
+  return (
+    <div className="flex flex-col gap-3 h-full">
+      {/* 1. Mode Tabs */}
+      <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
+        <button
+          onClick={() => setActiveTab('cycle')}
+          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
+            activeTab === 'cycle'
+              ? 'bg-slate-800 text-sky-400 font-semibold shadow-xs'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Single Cycle
+        </button>
+        <button
+          onClick={() => setActiveTab('word')}
+          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
+            activeTab === 'word'
+              ? 'bg-slate-800 text-purple-400 font-semibold shadow-xs'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Word Sequencer
+        </button>
+        <button
+          onClick={() => setActiveTab('manual')}
+          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
+            activeTab === 'manual'
+              ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Manual Jog
+        </button>
+      </div>
+
+      {/* 2. Execution Panel according to Active Tab */}
+      <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-xs flex flex-col gap-2.5">
+        {activeTab === 'cycle' && (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-300">Target Stamp Letter:</span>
+              <span className="text-[11px] text-slate-400 font-mono">2×13 (A–Z)</span>
+            </div>
+
+            {/* Row 1: Inner Arc (A to M - 13 letters) */}
+            <div className="flex flex-col gap-1.5">
+              <div>
+                <span className="text-[10px] text-slate-400 font-mono block mb-0.5">
+                  Inner Tier (A–M):
+                </span>
+                <div className="grid grid-cols-13 gap-0.5">
+                  {ALPHABET_26.slice(0, 13).map((letter) => (
+                    <button
+                      key={letter}
+                      disabled={isAnimating}
+                      onClick={() => onSelectLetter(letter)}
+                      className={`py-1 text-[11px] font-mono font-semibold rounded border transition ${
+                        selectedLetter === letter
+                          ? 'bg-purple-600 text-white border-purple-400'
+                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      {letter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Row 2: Outer Arc (N to Z - 13 letters, includes Y & Z) */}
+              <div>
+                <span className="text-[10px] text-slate-400 font-mono block mb-0.5">
+                  Outer Tier (N–Z):
+                </span>
+                <div className="grid grid-cols-13 gap-0.5">
+                  {ALPHABET_26.slice(13, 26).map((letter) => (
+                    <button
+                      key={letter}
+                      disabled={isAnimating}
+                      onClick={() => onSelectLetter(letter)}
+                      className={`py-1 text-[11px] font-mono font-semibold rounded border transition ${
+                        selectedLetter === letter
+                          ? 'bg-purple-600 text-white border-purple-400'
+                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      {letter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <button
+                disabled={isAnimating}
+                onClick={onRunCycle}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-900/50 disabled:text-purple-300/40 text-white font-medium rounded border border-purple-400/40 transition shadow-sm"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>{isAnimating ? 'Running...' : `Stamp '${selectedLetter}'`}</span>
+              </button>
+
+              <button
+                disabled={isAnimating}
+                onClick={onHomeArm}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 font-medium rounded border border-slate-700 transition"
+              >
+                <Home className="w-3.5 h-3.5 text-sky-400" />
+                <span>Home Arm</span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'word' && (
+          <form onSubmit={handleWordSubmit} className="flex flex-col gap-2.5">
+            <div>
+              <label className="text-[11px] text-slate-400 block mb-1">
+                Enter Word or Acronym (Letters A–Z):
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={wordInput}
+                  onChange={(e) => setWordInput(e.target.value.toUpperCase())}
+                  placeholder="e.g. ME416, ROBOT, STANFORD, XYZ"
+                  disabled={isAnimating}
+                  className="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded text-slate-100 font-mono text-xs focus:outline-hidden focus:border-purple-400 uppercase"
+                />
+                <button
+                  type="submit"
+                  disabled={isAnimating || !wordInput.trim()}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium rounded border border-purple-400/40 flex items-center gap-1.5 font-medium"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Stamp Word</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {activeTab === 'manual' && (
+          <div className="flex flex-col gap-3">
+            {/* 1. Base Rotation & Elbow Extension Joint Jogging */}
+            <div className="p-2 bg-slate-950/80 rounded border border-slate-800 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-emerald-400 text-[11px]">
+                  Arm Base Rotation & Elbow Extension:
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">Polar (ϕ, ρ)</span>
+              </div>
+
+              {/* Rotate at Arm's Base */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-300 font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                    Rotate Base (ϕ / θ₀)
+                  </span>
+                  <span className="font-mono text-amber-300 font-semibold">{manualThetaDeg.toFixed(1)}°</span>
+                </div>
+                <input
+                  type="range"
+                  min="-180"
+                  max="180"
+                  step="1"
+                  value={manualThetaDeg}
+                  onChange={(e) => onJogPolar(Number(e.target.value), manualReachMm)}
+                  className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                />
+                <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                  <span>-180° (Left)</span>
+                  <span>-90° (Front)</span>
+                  <span>0° (Right)</span>
+                  <span>+180°</span>
+                </div>
+              </div>
+
+              {/* Extend at Elbow Joint */}
+              <div className="space-y-1 pt-1 border-t border-slate-900">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-300 font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
+                    Extend Elbow (Reach ρ)
+                  </span>
+                  <span className="font-mono text-sky-300 font-semibold">{manualReachMm.toFixed(1)} mm</span>
+                </div>
+                <input
+                  type="range"
+                  min="55"
+                  max="240"
+                  step="1"
+                  value={manualReachMm}
+                  onChange={(e) => onJogPolar(manualThetaDeg, Number(e.target.value))}
+                  className="w-full accent-sky-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                />
+                <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                  <span>55mm (Retracted)</span>
+                  <span>115mm (Inner Arc)</span>
+                  <span>155mm (Outer Arc)</span>
+                  <span>240mm (Max)</span>
+                </div>
+              </div>
+
+              {/* Quick Stepper Buttons */}
+              <div className="grid grid-cols-4 gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onJogPolar(manualThetaDeg - 5, manualReachMm)}
+                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  title="Rotate Base CCW -5°"
+                >
+                  ↺ -5°
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onJogPolar(manualThetaDeg + 5, manualReachMm)}
+                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  title="Rotate Base CW +5°"
+                >
+                  ↻ +5°
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onJogPolar(manualThetaDeg, Math.max(55, manualReachMm - 5))}
+                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  title="Retract Elbow -5mm"
+                >
+                  ⇥ Retract
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onJogPolar(manualThetaDeg, Math.min(240, manualReachMm + 5))}
+                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  title="Extend Elbow +5mm"
+                >
+                  ⇤ Extend
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Direct Cartesian Coordinates Jogging (U, V) */}
+            <div className="p-2 bg-slate-950/50 rounded border border-slate-800/80 flex flex-col gap-2">
+              <span className="text-[10px] text-slate-400 font-mono">
+                Cartesian Coordinates [U, V] in mm:
+              </span>
+              <div className="grid grid-cols-2 gap-2 font-mono">
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                    <span>U (Lateral)</span>
+                    <span className="text-sky-300 font-semibold">{manualX.toFixed(0)} mm</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-250"
+                    max="250"
+                    value={manualX}
+                    onChange={(e) => onJogCartesian(Number(e.target.value), manualY)}
+                    className="w-full accent-sky-400 h-1 bg-slate-800 rounded"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                    <span>V (Forward)</span>
+                    <span className="text-sky-300 font-semibold">{manualY.toFixed(0)} mm</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-280"
+                    max="100"
+                    value={manualY}
+                    onChange={(e) => onJogCartesian(manualX, Number(e.target.value))}
+                    className="w-full accent-sky-400 h-1 bg-slate-800 rounded"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Workspace Layout & Visual Toggles */}
+      <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-xs flex flex-col gap-2">
+        <div className="flex items-center justify-between text-slate-300 font-semibold border-b border-slate-800 pb-1.5">
+          <span>Layout & Display Settings</span>
+        </div>
+
+        {/* Toggles */}
+        <div className="flex flex-col gap-1.5 pt-1 text-[11px]">
+          <label className="flex items-center justify-between text-slate-300 cursor-pointer">
+            <span>AprilTag Fiducials on Base Plates</span>
+            <input
+              type="checkbox"
+              checked={showAprilTags}
+              onChange={(e) => onToggleAprilTags(e.target.checked)}
+              className="accent-purple-500 rounded"
+            />
+          </label>
+
+          <label className="flex items-center justify-between text-slate-300 cursor-pointer">
+            <span>Show Workspace Reach Boundary</span>
+            <input
+              type="checkbox"
+              checked={showReachEnvelope}
+              onChange={(e) => onToggleReachEnvelope(e.target.checked)}
+              className="accent-purple-500 rounded"
+            />
+          </label>
+
+          <label className="flex items-center justify-between text-slate-300 cursor-pointer">
+            <span>End-Effector Trajectory Path Trail</span>
+            <input
+              type="checkbox"
+              checked={showTrajectoryTrail}
+              onChange={(e) => onToggleTrajectoryTrail(e.target.checked)}
+              className="accent-purple-500 rounded"
+            />
+          </label>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+          <button
+            onClick={onResetPositions}
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 text-[11px] transition"
+          >
+            <RotateCcw className="w-3 h-3 text-amber-400" />
+            <span>Reset Layout</span>
+          </button>
+
+          <button
+            onClick={onClearPaper}
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 text-[11px] transition"
+          >
+            <Trash2 className="w-3 h-3 text-rose-400" />
+            <span>Clear Paper</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 4. Kinematic & Action Log Stream */}
+      <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-xs flex-1 flex flex-col min-h-[160px]">
+        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
+          <span className="font-semibold text-slate-300 font-mono text-[11px]">
+            Kinematic Execution Log
+          </span>
+          <button
+            onClick={onClearLogs}
+            className="text-[10px] text-slate-500 hover:text-slate-300 font-mono"
+          >
+            Clear
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto bg-slate-950 p-2 rounded border border-slate-800/80 font-mono text-[10px] space-y-1">
+          {logs.map((log) => {
+            let textColor = 'text-sky-300';
+            if (log.level === 'warn') textColor = 'text-amber-400';
+            if (log.level === 'error') textColor = 'text-rose-400';
+            if (log.level === 'success') textColor = 'text-emerald-400';
+            return (
+              <div key={log.id} className="leading-tight">
+                <span className="text-slate-500">[{log.timestamp}]</span>{' '}
+                <span className={textColor}>{log.message}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
