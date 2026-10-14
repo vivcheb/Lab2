@@ -29,6 +29,7 @@ import {
   HOME_POSITION_3D,
   HOME_ANGLES,
   HOME_MOTOR_PULSE_US,
+  forwardKinematics3DOF,
   radToDeg,
 } from './utils/kinematics';
 import { WorkspaceCanvas } from './components/WorkspaceCanvas';
@@ -188,11 +189,11 @@ export default function App() {
 
       if (isHomeMove) {
         addLog(
-          `> Serial TX: M1 2500 | M2 2500 | M3 2500 (Home posture: 2500µs / +90°)`,
+          `> Serial TX: M1 1500 | M2 1500 | M3 1500 (Zero posture: 1.5ms all motors)`,
           'kinematics'
         );
         if (serialManager.getIsConnected() && isMirrorEnabled) {
-          serialManager.homeArm(2500);
+          serialManager.zeroArm(1500);
         }
       } else {
         addLog(
@@ -483,14 +484,35 @@ export default function App() {
     [isAnimating, armParams.scale, paperPos, addLog, runCycleForLetter]
   );
 
-  // Manual Home Arm - Home is 2500us (+90 deg), zero is 1500us (0 deg)
-  const handleHomeArm = () => {
+  // Manual Zero Arm - Zero is 1500us (1.5ms) for all motors
+  const handleZeroArm = () => {
     if (isAnimating) return;
-    addLog('Homing RASTICrane: Setting Home position (2500µs / +90°)...', 'info');
+    addLog('Zeroing RASTICrane: Setting Zero position (1500µs / 1.5ms all motors)...', 'info');
     if (serialManager.getIsConnected()) {
-      serialManager.homeArm(HOME_MOTOR_PULSE_US);
+      serialManager.zeroArm(1500);
     }
-    moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME');
+    // Zero position: base = -45 deg (1500us), shoulder = 0 deg (1500us), elbow = 0 deg (1500us)
+    const phiRad = (-45 * Math.PI) / 180;
+    const xMm = (armParams.L2 + armParams.L3) * Math.sin(phiRad);
+    const yMm = (armParams.L2 + armParams.L3) * Math.cos(phiRad);
+    moveToPosition3D(xMm, yMm, armParams.L1, 'RETURN_HOME');
+  };
+
+  // Manual Shoulder Rotation Jogging (θ₁ / ssh / M1)
+  const handleJogShoulder = (newShoulderDeg: number) => {
+    if (isAnimating) return;
+    const currentBaseRad = Math.atan2(currentPos3D.x, currentPos3D.y);
+    const newShoulderRad = (newShoulderDeg * Math.PI) / 180;
+    const currentElbowRad = (currentIK.elbowDeg * Math.PI) / 180;
+    const fk = forwardKinematics3DOF(
+      currentBaseRad,
+      newShoulderRad,
+      currentElbowRad,
+      armParams.L1,
+      armParams.L2,
+      armParams.L3
+    );
+    moveToPosition3D(fk.ee.x, fk.ee.y, Math.max(0, fk.ee.z), 'APPROACH_SLOT');
   };
 
   // Reset Component Layout Positions
@@ -803,7 +825,7 @@ export default function App() {
               }
             }}
             onRunCycle={() => runCycleForLetter(selectedLetter)}
-            onHomeArm={handleHomeArm}
+            onZeroArm={handleZeroArm}
             onResetPositions={handleResetPositions}
             onClearPaper={handleClearPaper}
             isAnimating={isAnimating}
@@ -822,7 +844,10 @@ export default function App() {
             onJogCartesian={handleJogCartesian}
             manualThetaDeg={(Math.atan2(currentPos3D.x, currentPos3D.y) * 180) / Math.PI}
             manualReachMm={Math.hypot(currentPos3D.x, currentPos3D.y)}
+            manualShoulderDeg={currentIK.shoulderDeg}
+            manualElbowDeg={currentIK.elbowDeg}
             onJogPolar={handleJogPolar}
+            onJogShoulder={handleJogShoulder}
             onOpenHardware={() => setActiveTab('hardware')}
             isSerialConnected={isSerialConnected}
           />

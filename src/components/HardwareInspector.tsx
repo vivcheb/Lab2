@@ -67,10 +67,10 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [hwWordInput, setHwWordInput] = useState('ROBOT');
 
-  // Manual test pulse values (visual slider range: 1500us [0 deg] to 2500us [+90 deg], home is 2500us)
-  const [testM1, setTestM1] = useState(HOME_MOTOR_PULSE_US);
-  const [testM2, setTestM2] = useState(HOME_MOTOR_PULSE_US);
-  const [testM3, setTestM3] = useState(HOME_MOTOR_PULSE_US);
+  // Manual test pulse values (visual slider range: 1500us to 2500us; M1/M3 zero: 1500us, M2 Base zero: 2000us)
+  const [testM1, setTestM1] = useState(1500);
+  const [testM2, setTestM2] = useState(2000);
+  const [testM3, setTestM3] = useState(1500);
 
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -117,15 +117,8 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       if (v3 >= 1000 && v3 <= 3000) setTestM3(Math.max(1500, Math.min(2500, v3)));
     }
 
-    // Check for HOME
-    if (text.includes('HOME')) {
-      setTestM1(2500);
-      setTestM2(2500);
-      setTestM3(2500);
-    }
-
-    // Check for ZERO
-    if (text.includes('ZERO') || text.includes('1500US')) {
+    // Check for ZERO or HOME
+    if (text.includes('ZERO') || text.includes('1500MS') || text.includes('1500US')) {
       setTestM1(1500);
       setTestM2(1500);
       setTestM3(1500);
@@ -178,9 +171,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       await serialManager.connect(baudRate);
       addLog(`Connected to real robot arm via Web Serial @ ${baudRate} baud`, 'success');
       appendTerminal('sys', `Connected to port @ ${baudRate} baud`);
-      // Immediately home motors to 2500us (+90 deg)
-      await serialManager.homeArm(2500);
-      appendTerminal('tx', 'M1 2500 | M2 2500 | M3 2500 | HOME (2500µs / +90°)');
+      // Immediately zero motors to 1500us (1.5ms for all motors)
+      await serialManager.zeroArm(1500);
+      appendTerminal('tx', 'M1 1500 | M2 1500 | M3 1500 | ZERO (1500µs all motors)');
     } catch (err: any) {
       if (err.name !== 'NotFoundError') {
         setStatusMsg(`Connection error: ${err.message}`);
@@ -197,31 +190,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
     addLog('Disconnected from robot arm serial port', 'warn');
   };
 
-  // Home Arm (2500us / +90 deg)
-  const handleHomeArm = async () => {
-    setTestM1(2500);
-    setTestM2(2500);
-    setTestM3(2500);
-    appendTerminal('tx', 'M1 2500 | M2 2500 | M3 2500 | HOME (2500µs / +90°)');
-    if (isConnected) {
-      await serialManager.homeArm(2500);
-      addLog('Physical Arm: Sent Home commands (2500µs / +90°)', 'success');
-    } else {
-      addLog('Homed sliders to 2500µs (Connect USB to drive physical arm)', 'info');
-    }
-  };
-
-  // Zero Arm (1500us / 0 deg)
+  // Zero Arm (1500us / 1.5ms for all motors)
   const handleZeroArm = async () => {
     setTestM1(1500);
     setTestM2(1500);
     setTestM3(1500);
-    appendTerminal('tx', 'M1 1500 | M2 1500 | M3 1500 | ZERO (1500µs / 0°)');
+    appendTerminal('tx', 'M1 1500 | M2 1500 | M3 1500 | ZERO (1500µs / 1.5ms all motors)');
     if (isConnected) {
-      await serialManager.sendMotors(1500, 1500, 1500);
-      addLog('Physical Arm: Sent Zero commands (1500µs / 0°)', 'info');
+      await serialManager.zeroArm(1500);
+      addLog('Physical Arm: Sent Zero commands (1500µs for all motors)', 'info');
     } else {
-      addLog('Set sliders to 1500µs (0° Zero)', 'info');
+      addLog('Set sliders to 1500µs (1.5ms Zero all motors)', 'info');
     }
   };
 
@@ -491,44 +470,38 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </p>
                 </div>
 
-                {/* Quick Actions (Home 2500us, Zero 1500us, E-Stop) */}
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={handleHomeArm}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg flex flex-col items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer"
-                    title="Send Home pulse 2500µs (+90°) to all motors"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Home Arm</span>
-                    <span className="text-[9px] text-sky-400/80 font-mono">2500µs (+90°)</span>
-                  </button>
-
+                {/* Quick Actions (Zero 1500us all motors, E-Stop) */}
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={handleZeroArm}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg flex flex-col items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer"
-                    title="Send Zero position 1500µs (0°) to all motors"
+                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer"
+                    title="Send Zero position 1500µs (1.5ms) to all motors"
                   >
-                    <RotateCw className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Zero Arm</span>
-                    <span className="text-[9px] text-amber-400/80 font-mono">1500µs (0°)</span>
+                    <RotateCw className="w-4 h-4 text-amber-400" />
+                    <div className="flex flex-col items-start">
+                      <span>Zero Arm</span>
+                      <span className="text-[9px] text-amber-400/80 font-mono">1500µs (1.5ms all motors)</span>
+                    </div>
                   </button>
 
                   <button
                     onClick={handleEmergencyStop}
-                    className="p-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 rounded-lg flex flex-col items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer"
+                    className="p-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer"
                     title="Detaches all servos immediately"
                   >
-                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-                    <span>E-STOP</span>
-                    <span className="text-[9px] text-rose-400/80 font-mono">Detach</span>
+                    <ShieldAlert className="w-4 h-4 text-rose-400" />
+                    <div className="flex flex-col items-start">
+                      <span>E-STOP</span>
+                      <span className="text-[9px] text-rose-400/80 font-mono">Detach Servos</span>
+                    </div>
                   </button>
                 </div>
 
-                {/* Manual Servo Pulse Sliders: 1500us (0 deg) to 2500us (+90 deg) */}
+                {/* Manual Servo Pulse Sliders: 1500us to 2500us (M2 Base Zero: 2000us +/-45°) */}
                 <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-200">Manual Servo Pulse Testing</span>
-                    <span className="text-[10px] text-slate-400 font-mono">[1500µs (0°) &rarr; 2500µs (+90°)]</span>
+                    <span className="text-[10px] text-slate-400 font-mono">[1500µs &rarr; 2500µs]</span>
                   </div>
 
                   {/* Motor 1: Shoulder Elevation (Flipped: M1 is Shoulder in real life) */}
@@ -560,17 +533,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                         2000µs (+45° Mid)
                       </button>
                       <button onClick={() => { setTestM1(2500); handleSendSingleMotor(1, 2500); }} className="hover:text-emerald-300 cursor-pointer">
-                        2500µs (+90° Home)
+                        2500µs (+90° Max)
                       </button>
                     </div>
                   </div>
 
-                  {/* Motor 2: Base Yaw (Flipped: M2 is Base in real life) */}
+                  {/* Motor 2: Base Yaw (Flipped: M2 is Base in real life, Zero is 2000us for +/-45 deg) */}
                   <div className="space-y-1 pt-2 border-t border-slate-900">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-amber-300 font-medium">M2 (Base Yaw θ₀)</span>
                       <span className="font-mono text-slate-200 font-bold">
-                        {testM2} µs ({(testM2 / 1000).toFixed(2)} ms) &bull; {(((testM2 - 1500) * 90) / 1000).toFixed(1)}°
+                        {testM2} µs ({(testM2 / 1000).toFixed(2)} ms) &bull; {(((testM2 - 2000) * 45) / 500).toFixed(1)}°
                       </span>
                     </div>
                     <input
@@ -588,13 +561,13 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     />
                     <div className="flex justify-between text-[9px] text-slate-500 font-mono">
                       <button onClick={() => { setTestM2(1500); handleSendSingleMotor(2, 1500); }} className="hover:text-amber-300 cursor-pointer">
-                        1500µs (0° Zero)
+                        1500µs (-45° Left)
                       </button>
                       <button onClick={() => { setTestM2(2000); handleSendSingleMotor(2, 2000); }} className="hover:text-amber-300 cursor-pointer">
-                        2000µs (+45° Mid)
+                        2000µs (0° Zero Base)
                       </button>
                       <button onClick={() => { setTestM2(2500); handleSendSingleMotor(2, 2500); }} className="hover:text-amber-300 cursor-pointer">
-                        2500µs (+90° Home)
+                        2500µs (+45° Right)
                       </button>
                     </div>
                   </div>

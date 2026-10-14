@@ -46,13 +46,14 @@ Servo servo3; // Elbow (M3)
 // Pulse Limits (Microseconds)
 const int MIN_PULSE_US = 1000;
 const int MAX_PULSE_US = 2600;
-const int ZERO_US      = 1500; // 0 deg position (1.5ms)
-const int HOME_US      = 2500; // Home position (+90 deg, 2.5ms)
+const int ZERO_US      = 1500; // 1.5ms for all motors
+const int BASE_ZERO_US = 2000; // 0 deg center for M2 Base Yaw (+/-45 deg)
+const int HOME_US      = 2500; // +90 deg
 
-// Current target microsecond values
-int currentM1 = HOME_US;
-int currentM2 = HOME_US;
-int currentM3 = HOME_US;
+// Current target microsecond values (boot to 1500us Zero on all motors)
+int currentM1 = ZERO_US;
+int currentM2 = ZERO_US;
+int currentM3 = ZERO_US;
 
 bool servosAttached = false;
 String inputString = "";
@@ -102,7 +103,7 @@ void setZero() {
   currentM2 = ZERO_US;
   currentM3 = ZERO_US;
   applyPulses();
-  Serial.println("OK: Zeroed all motors to 1500us (0 deg)");
+  Serial.println("OK: Zeroed all motors to 1500us (1.5ms)");
 }
 
 void setup() {
@@ -111,14 +112,14 @@ void setup() {
 
   inputString.reserve(64);
 
-  // Initialize and go to home position (1.5ms for all motors)
+  // Initialize and go to zero position (1.5ms for all motors)
   attachAllServos();
-  setHome();
+  setZero();
 
   Serial.println("=================================================");
   Serial.println("RASTICrane ME416 Robot Arm Controller Ready");
-  Serial.println("Baud: 115200 | Home: 1500us (1.5ms) all motors");
-  Serial.println("Commands: M1 <us>, M2 <us>, M3 <us>, POS <m1> <m2> <m3>, HOME, STOP");
+  Serial.println("Baud: 115200 | Zero: 1500us (1.5ms) all motors");
+  Serial.println("Commands: M1 <us>, M2 <us>, M3 <us>, POS <m1> <m2> <m3>, ZERO, STOP");
   Serial.println("=================================================");
 }
 

@@ -31,11 +31,17 @@ export const TAG_STAMP_RIGHT = TAG_RACK_B; // tagId_rackB = 1
 export const TAG_SIZE_METERS = 0.05; // 50mm (as specified in Handout L = 50 mm)
 export const TAG_SIZE_MM = 50;
 
-// Zero degree posture: 1500us (1.5ms). Home posture: 2500us (2.5ms, +90 deg)
-export const ZERO_DEG_MOTOR_PULSE_US = 1500;
-export const ZERO_DEG_MOTOR_PULSE_MS = 1.5;
-export const HOME_MOTOR_PULSE_MS = 2.5;
+// Zero posture pulse values:
+// Motor 1 (Shoulder): 1500 us (0 deg)
+// Motor 2 (Base Yaw): 2000 us (0 deg Center, enables +/- 45 deg range from 1500us to 2500us)
+// Motor 3 (Elbow):    1500 us (0 deg)
+export const ZERO_MOTOR_PULSE_US = 1500;
 export const HOME_MOTOR_PULSE_US = 2500;
+export const ZERO_DEG_MOTOR_PULSE_US = 1500;
+export const ZERO_M1_SHOULDER_US = 1500;
+export const ZERO_M2_BASE_US = 2000;
+export const ZERO_M3_ELBOW_US = 1500;
+
 export const HOME_POSITION_3D: Position3D = {
   x: 0,
   y: 240, // mm (fully extended neutral reach where shoulder & elbow elevation are 0 deg)
@@ -48,9 +54,9 @@ export const HOME_ANGLES: JointAngles3DOF = {
   baseRad: 0,
   shoulderRad: 0,
   elbowRad: 0,
-  m1_us: HOME_MOTOR_PULSE_US,
-  m2_us: HOME_MOTOR_PULSE_US,
-  m3_us: HOME_MOTOR_PULSE_US,
+  m1_us: ZERO_M1_SHOULDER_US, // 1500 us
+  m2_us: ZERO_M2_BASE_US,     // 2000 us (Center 0 deg, allows +/-45 deg from 1500us to 2500us)
+  m3_us: ZERO_M3_ELBOW_US,    // 1500 us
 };
 
 // AprilTag mounting square plates on stamp holder (55.731mm by 55.731mm)
@@ -115,9 +121,9 @@ export function solve3DOF_IK(
         baseRad: base_rad,
         shoulderRad: 0,
         elbowRad: 0,
-        m1_us: HOME_MOTOR_PULSE_US, // Motor 1 = Shoulder
-        m2_us: mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500), // Motor 2 = Base
-        m3_us: HOME_MOTOR_PULSE_US, // Motor 3 = Elbow
+        m1_us: ZERO_M1_SHOULDER_US, // Motor 1 = Shoulder (1500us)
+        m2_us: Math.round(Math.max(1500, Math.min(2500, ZERO_M2_BASE_US + (base_deg / 45) * 500))), // Motor 2 = Base (2000us at 0 deg, +/-45 deg)
+        m3_us: ZERO_M3_ELBOW_US, // Motor 3 = Elbow (1500us)
       };
     }
   }
@@ -137,11 +143,11 @@ export function solve3DOF_IK(
   const elbow_deg = radToDeg(elbow_rad);
 
   // Real-life arm motor mapping (Shoulder and Base are flipped):
-  // Motor 1 (M1) = Shoulder (theta1 / ssh)
-  // Motor 2 (M2) = Base Yaw (theta0 / s0)
-  // Motor 3 (M3) = Elbow (theta2 / sel)
+  // Motor 1 (M1) = Shoulder (theta1 / ssh): 0 to 90 deg -> 1500 to 2500 us
+  // Motor 2 (M2) = Base Yaw (theta0 / s0): 0 deg is 2000us, rotating +/-45 deg from 1500us to 2500us
+  // Motor 3 (M3) = Elbow (theta2 / sel): 0 to 90 deg -> 1500 to 2500 us
   const m1_shoulder_us = mapAngleToUs(Math.abs(shoulder_deg), 0, 90, 1500, 2500);
-  const m2_base_us = mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500);
+  const m2_base_us = Math.round(Math.max(1500, Math.min(2500, ZERO_M2_BASE_US + (base_deg / 45) * 500)));
   const m3_elbow_us = mapAngleToUs(Math.abs(elbow_deg), 0, 90, 1500, 2500);
 
   return {
@@ -197,8 +203,8 @@ export function forwardKinematics3DOF(
   const r_elbow = L2 * Math.cos(shoulder_rad);
   const z_elbow = L1 + L2 * Math.sin(shoulder_rad);
   const elbow: Position3D = {
-    x: r_elbow * Math.cos(base_rad),
-    y: r_elbow * Math.sin(base_rad),
+    x: r_elbow * Math.sin(base_rad),
+    y: r_elbow * Math.cos(base_rad),
     z: z_elbow,
   };
 
@@ -207,8 +213,8 @@ export function forwardKinematics3DOF(
   const z_ee = z_elbow + L3 * Math.sin(forearm_elev);
 
   const ee: Position3D = {
-    x: r_ee * Math.cos(base_rad),
-    y: r_ee * Math.sin(base_rad),
+    x: r_ee * Math.sin(base_rad),
+    y: r_ee * Math.cos(base_rad),
     z: z_ee,
   };
 

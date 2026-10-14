@@ -142,6 +142,17 @@ class WebSerialManager {
     return true;
   }
 
+  public async zeroArm(zeroUs: number = 1500): Promise<boolean> {
+    const s = Math.round(zeroUs);
+    // Send individual M1, M2, M3, POS, and ZERO to set 1500us (1.5ms) for all motors
+    await this.sendCommand(`M1 ${s}`);
+    await this.sendCommand(`M2 ${s}`);
+    await this.sendCommand(`M3 ${s}`);
+    await this.sendCommand(`POS ${s} ${s} ${s}`);
+    await this.sendCommand(`ZERO`);
+    return true;
+  }
+
   public async stopArm(): Promise<boolean> {
     await this.sendCommand('STOP');
     await this.sendCommand('ESTOP');

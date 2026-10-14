@@ -14,7 +14,7 @@ interface ControlPanelProps {
   selectedLetter: string;
   onSelectLetter: (letter: string) => void;
   onRunCycle: () => void;
-  onHomeArm: () => void;
+  onZeroArm: () => void;
   onResetPositions: () => void;
   onClearPaper: () => void;
   isAnimating: boolean;
@@ -33,7 +33,10 @@ interface ControlPanelProps {
   onJogCartesian: (x: number, y: number) => void;
   manualThetaDeg: number;
   manualReachMm: number;
+  manualShoulderDeg?: number;
+  manualElbowDeg?: number;
   onJogPolar: (thetaDeg: number, reachMm: number) => void;
+  onJogShoulder?: (shoulderDeg: number) => void;
   onOpenHardware?: () => void;
   isSerialConnected?: boolean;
 }
@@ -42,7 +45,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   selectedLetter,
   onSelectLetter,
   onRunCycle,
-  onHomeArm,
+  onZeroArm,
   onResetPositions,
   onClearPaper,
   isAnimating,
@@ -61,7 +64,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onJogCartesian,
   manualThetaDeg,
   manualReachMm,
+  manualShoulderDeg = 0,
+  manualElbowDeg = 0,
   onJogPolar,
+  onJogShoulder,
   onOpenHardware,
   isSerialConnected = false,
 }) => {
@@ -134,16 +140,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
             </div>
 
-            {/* Home Arm & Status */}
+            {/* Zero Arm & Actions */}
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
               <button
                 type="button"
                 disabled={isAnimating}
-                onClick={onHomeArm}
-                className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 font-medium rounded border border-slate-700 transition text-[11px]"
+                onClick={onZeroArm}
+                className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-amber-300 font-medium rounded border border-amber-500/30 transition text-[11px]"
+                title="Zero Arm at 1500µs (1.5ms) for all motors"
               >
-                <Home className="w-3.5 h-3.5 text-sky-400" />
-                <span>Home Arm</span>
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                <span>Zero Arm (1500µs)</span>
               </button>
 
               <button
@@ -179,49 +186,88 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {activeTab === 'manual' && (
           <div className="flex flex-col gap-3">
-            {/* 1. Base Rotation & Elbow Extension Joint Jogging */}
-            <div className="p-2 bg-slate-950/80 rounded border border-slate-800 flex flex-col gap-2.5">
+            {/* 1. Joint Jogging: Base Yaw, Shoulder Rotation & Elbow Extension */}
+            <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-emerald-400 text-[11px]">
-                  Arm Base Rotation & Elbow Extension:
+                  Joint Jogging (Base, Shoulder, Elbow):
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">Polar (ϕ, ρ)</span>
+                <span className="text-[10px] text-slate-400 font-mono">3-DOF Polar</span>
               </div>
 
-              {/* Rotate at Arm's Base */}
+              {/* 1. Rotate Base (ϕ / θ₀) - Center 0° is 2000µs (+/-45°) */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px]">
                   <span className="text-slate-300 font-medium flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                    Rotate Base (ϕ / θ₀)
+                    Rotate Base (ϕ / θ₀ / M2)
                   </span>
-                  <span className="font-mono text-amber-300 font-semibold">{manualThetaDeg.toFixed(1)}°</span>
+                  <span className="font-mono text-amber-300 font-semibold">
+                    {manualThetaDeg.toFixed(1)}° &bull;{' '}
+                    <span className="text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded text-[10px]">
+                      {Math.round(Math.max(1500, Math.min(2500, 2000 + (manualThetaDeg / 45) * 500)))} µs
+                    </span>
+                  </span>
                 </div>
                 <input
                   type="range"
-                  min="-180"
-                  max="180"
+                  min="-45"
+                  max="45"
                   step="1"
-                  value={manualThetaDeg}
+                  value={Math.max(-45, Math.min(45, manualThetaDeg))}
                   onChange={(e) => onJogPolar(Number(e.target.value), manualReachMm)}
                   className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                  <span>-180° (Left)</span>
-                  <span>-90° (Front)</span>
-                  <span>0° (Right)</span>
-                  <span>+180°</span>
+                  <span>-45° (1500µs Left)</span>
+                  <span>0° (2000µs Center)</span>
+                  <span>+45° (2500µs Right)</span>
                 </div>
               </div>
 
-              {/* Extend at Elbow Joint */}
+              {/* 2. Rotate Shoulder (θ₁ / ssh / M1) - Range 0° to 90° (1500µs to 2500µs) */}
+              <div className="space-y-1 pt-1 border-t border-slate-900">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-300 font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                    Rotate Shoulder (θ₁ / M1)
+                  </span>
+                  <span className="font-mono text-emerald-300 font-semibold">
+                    {manualShoulderDeg.toFixed(1)}° &bull;{' '}
+                    <span className="text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded text-[10px]">
+                      {Math.round(Math.max(1500, Math.min(2500, 1500 + (manualShoulderDeg / 90) * 1000)))} µs
+                    </span>
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="90"
+                  step="1"
+                  value={Math.max(0, Math.min(90, manualShoulderDeg))}
+                  onChange={(e) => onJogShoulder?.(Number(e.target.value))}
+                  className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                />
+                <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                  <span>0° (1500µs Horizontal)</span>
+                  <span>45° (2000µs Mid)</span>
+                  <span>90° (2500µs Up)</span>
+                </div>
+              </div>
+
+              {/* 3. Extend at Elbow Joint (Reach ρ & θ₂ / sel) */}
               <div className="space-y-1 pt-1 border-t border-slate-900">
                 <div className="flex justify-between text-[11px]">
                   <span className="text-slate-300 font-medium flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
-                    Extend Elbow (Reach ρ)
+                    Extend Elbow (Reach ρ & θ₂ / M3)
                   </span>
-                  <span className="font-mono text-sky-300 font-semibold">{manualReachMm.toFixed(1)} mm</span>
+                  <span className="font-mono text-sky-300 font-semibold">
+                    {manualReachMm.toFixed(1)} mm &bull;{' '}
+                    <span className="text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded text-[10px]">
+                      {Math.round(Math.max(1500, Math.min(2500, 1500 + (manualElbowDeg / 90) * 1000)))} µs
+                    </span>
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -234,45 +280,74 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 />
                 <div className="flex justify-between text-[9px] text-slate-500 font-mono">
                   <span>55mm (Retracted)</span>
-                  <span>115mm (Inner Arc)</span>
-                  <span>155mm (Outer Arc)</span>
+                  <span>115mm (Inner)</span>
+                  <span>155mm (Outer)</span>
                   <span>240mm (Max)</span>
                 </div>
               </div>
 
-              {/* Quick Stepper Buttons */}
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
+              {/* Quick Stepper Buttons for Base, Shoulder, Elbow */}
+              <div className="grid grid-cols-6 gap-1 pt-1 border-t border-slate-900">
                 <button
                   type="button"
-                  onClick={() => onJogPolar(manualThetaDeg - 5, manualReachMm)}
-                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  onClick={() => onJogPolar(Math.max(-45, manualThetaDeg - 5), manualReachMm)}
+                  className="px-1 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-amber-300 border border-slate-700 rounded text-[9px] font-mono transition"
                   title="Rotate Base CCW -5°"
                 >
-                  ↺ -5°
+                  ↺ -5° Base
                 </button>
                 <button
                   type="button"
-                  onClick={() => onJogPolar(manualThetaDeg + 5, manualReachMm)}
-                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  onClick={() => onJogPolar(Math.min(45, manualThetaDeg + 5), manualReachMm)}
+                  className="px-1 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-amber-300 border border-slate-700 rounded text-[9px] font-mono transition"
                   title="Rotate Base CW +5°"
                 >
-                  ↻ +5°
+                  ↻ +5° Base
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onJogShoulder?.(Math.max(0, manualShoulderDeg - 5))}
+                  className="px-1 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-emerald-300 border border-slate-700 rounded text-[9px] font-mono transition"
+                  title="Lower Shoulder -5°"
+                >
+                  ⇣ -5° Shldr
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onJogShoulder?.(Math.min(90, manualShoulderDeg + 5))}
+                  className="px-1 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-emerald-300 border border-slate-700 rounded text-[9px] font-mono transition"
+                  title="Raise Shoulder +5°"
+                >
+                  ⇡ +5° Shldr
                 </button>
                 <button
                   type="button"
                   onClick={() => onJogPolar(manualThetaDeg, Math.max(55, manualReachMm - 5))}
-                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  className="px-1 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-sky-300 border border-slate-700 rounded text-[9px] font-mono transition"
                   title="Retract Elbow -5mm"
                 >
-                  ⇥ Retract
+                  ⇥ -5mm
                 </button>
                 <button
                   type="button"
                   onClick={() => onJogPolar(manualThetaDeg, Math.min(240, manualReachMm + 5))}
-                  className="px-1.5 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-mono transition"
+                  className="px-1 py-1 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-sky-300 border border-slate-700 rounded text-[9px] font-mono transition"
                   title="Extend Elbow +5mm"
                 >
-                  ⇤ Extend
+                  ⇤ +5mm
+                </button>
+              </div>
+
+              {/* Zero Arm Button in Manual Jog */}
+              <div className="pt-1 border-t border-slate-900">
+                <button
+                  type="button"
+                  disabled={isAnimating}
+                  onClick={onZeroArm}
+                  className="w-full flex items-center justify-center gap-1.5 py-1 px-2 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono transition cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3 text-amber-400" />
+                  <span>Zero Arm (1500µs all motors)</span>
                 </button>
               </div>
             </div>
