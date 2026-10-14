@@ -36,11 +36,14 @@ import { TelemetryPanel } from './components/TelemetryPanel';
 import { ControlPanel } from './components/ControlPanel';
 import { VisionInspector } from './components/VisionInspector';
 import { CodeInspector } from './components/CodeInspector';
+import { HardwareInspector } from './components/HardwareInspector';
+import { serialManager } from './utils/serial';
 import {
   Layers,
   Camera,
   Code2,
   BookOpen,
+  Usb,
 } from 'lucide-react';
 
 export default function App() {
@@ -88,7 +91,20 @@ export default function App() {
   const [stampedMarks, setStampedMarks] = useState<StampedMark[]>([]);
 
   // Navigation / View Modes
-  const [activeTab, setActiveTab] = useState<'workspace' | 'vision' | 'code' | 'docs'>('workspace');
+  const [activeTab, setActiveTab] = useState<'workspace' | 'vision' | 'hardware' | 'code' | 'docs'>('workspace');
+  const [isSerialConnected, setIsSerialConnected] = useState(false);
+  const [isMirrorEnabled, setIsMirrorEnabled] = useState(true);
+
+  // Sync serial connection status with serialManager
+  useEffect(() => {
+    const unsub = serialManager.onStatus((connected) => {
+      setIsSerialConnected(connected);
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
   const [logs, setLogs] = useState<LogEntry[]>([
     {
       id: '1',
@@ -175,11 +191,17 @@ export default function App() {
           `> Serial TX: M1 1500 | M2 1500 | M3 1500 (Home posture: 1.5ms all motors)`,
           'kinematics'
         );
+        if (serialManager.getIsConnected() && isMirrorEnabled) {
+          serialManager.homeArm();
+        }
       } else {
         addLog(
           `> Serial TX: M1 ${ik.m1_us} | M2 ${ik.m2_us} | M3 ${ik.m3_us}`,
           'kinematics'
         );
+        if (serialManager.getIsConnected() && isMirrorEnabled) {
+          serialManager.sendMotors(ik.m1_us, ik.m2_us, ik.m3_us);
+        }
       }
 
       setIsAnimating(true);
@@ -267,7 +289,7 @@ export default function App() {
 
       animFrameRef.current = requestAnimationFrame(animate);
     },
-    [armParams.L1, armParams.L2, armParams.L3, armParams.scale, addLog]
+    [armParams.L1, armParams.L2, armParams.L3, armParams.scale, addLog, isMirrorEnabled]
   );
 
   // Execute Full Pick-and-Place Cycle with Handout Page 3 Wiping Motion Release
@@ -546,9 +568,22 @@ export default function App() {
               <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono">
                 RASTICrane Pick-and-Place
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                Serial COM3 @ 115200
-              </span>
+              <button
+                onClick={() => setActiveTab('hardware')}
+                className={`text-[10px] px-2.5 py-0.5 rounded font-mono font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                  isSerialConnected
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                    : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
+                }`}
+                title="Click to manage USB Serial connection to real robot arm"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isSerialConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
+                  }`}
+                />
+                {isSerialConnected ? 'Arm Connected (COM3)' : 'Connect Arm (USB)'}
+              </button>
             </div>
           </div>
         </div>
@@ -557,7 +592,7 @@ export default function App() {
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
           <button
             onClick={() => setActiveTab('workspace')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
               activeTab === 'workspace'
                 ? 'bg-slate-800 text-sky-400 font-semibold shadow-xs'
                 : 'text-slate-400 hover:text-slate-200'
@@ -567,8 +602,22 @@ export default function App() {
             <span>Workspace Layout</span>
           </button>
           <button
+            onClick={() => setActiveTab('hardware')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
+              activeTab === 'hardware'
+                ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Usb className="w-3.5 h-3.5" />
+            <span>Real Arm Control</span>
+            {isSerialConnected && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </button>
+          <button
             onClick={() => setActiveTab('vision')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
               activeTab === 'vision'
                 ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs'
                 : 'text-slate-400 hover:text-slate-200'
@@ -579,7 +628,7 @@ export default function App() {
           </button>
           <button
             onClick={() => setActiveTab('code')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
               activeTab === 'code'
                 ? 'bg-slate-800 text-purple-400 font-semibold shadow-xs'
                 : 'text-slate-400 hover:text-slate-200'
@@ -590,7 +639,7 @@ export default function App() {
           </button>
           <button
             onClick={() => setActiveTab('docs')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
               activeTab === 'docs'
                 ? 'bg-slate-800 text-amber-400 font-semibold shadow-xs'
                 : 'text-slate-400 hover:text-slate-200'
@@ -629,6 +678,20 @@ export default function App() {
           />
 
           {/* Modal Overlay / Secondary Views */}
+          {activeTab === 'hardware' && (
+            <div className="absolute inset-x-4 bottom-4 z-30 shadow-2xl max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
+              <HardwareInspector
+                currentM1={currentIK.m1_us}
+                currentM2={currentIK.m2_us}
+                currentM3={currentIK.m3_us}
+                isMirrorEnabled={isMirrorEnabled}
+                onToggleMirror={setIsMirrorEnabled}
+                onClose={() => setActiveTab('workspace')}
+                addLog={addLog}
+              />
+            </div>
+          )}
+
           {activeTab === 'vision' && (
             <div className="absolute inset-x-4 bottom-4 z-30 shadow-2xl max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
               <VisionInspector
@@ -745,6 +808,8 @@ export default function App() {
             manualThetaDeg={(Math.atan2(currentPos3D.x, currentPos3D.y) * 180) / Math.PI}
             manualReachMm={Math.hypot(currentPos3D.x, currentPos3D.y)}
             onJogPolar={handleJogPolar}
+            onOpenHardware={() => setActiveTab('hardware')}
+            isSerialConnected={isSerialConnected}
           />
         </aside>
       </div>

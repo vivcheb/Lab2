@@ -7,6 +7,7 @@ import {
   Home,
   Sparkles,
   Trash2,
+  Usb,
 } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -33,6 +34,8 @@ interface ControlPanelProps {
   manualThetaDeg: number;
   manualReachMm: number;
   onJogPolar: (thetaDeg: number, reachMm: number) => void;
+  onOpenHardware?: () => void;
+  isSerialConnected?: boolean;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -59,6 +62,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   manualThetaDeg,
   manualReachMm,
   onJogPolar,
+  onOpenHardware,
+  isSerialConnected = false,
 }) => {
   const [wordInput, setWordInput] = useState('ROBOT');
   const [activeTab, setActiveTab] = useState<'word' | 'manual'>('word');
@@ -149,6 +154,25 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                 <span>Clear Paper</span>
               </button>
+
+              {onOpenHardware && (
+                <button
+                  type="button"
+                  onClick={onOpenHardware}
+                  className={`col-span-2 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded border transition text-[11px] font-medium ${
+                    isSerialConnected
+                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/50'
+                      : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  <Usb className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>
+                    {isSerialConnected
+                      ? 'Arm Connected (COM3 / USB) — Settings'
+                      : 'Connect Real Arm (USB Serial) & Guide'}
+                  </span>
+                </button>
+              )}
             </div>
           </form>
         )}
