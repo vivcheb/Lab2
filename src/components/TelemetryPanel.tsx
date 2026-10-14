@@ -111,7 +111,13 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <Cpu className="w-3.5 h-3.5" />
             Servo Commands (s0, ssh, sel) & Kinematics
           </span>
-          <span className="text-[10px] text-slate-400">[-45°, 45°] &rarr; [1300µs, 1700µs]</span>
+          {angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 1500 && angles3DOF.m3_us === 1500 ? (
+            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px]">
+              Home: 1.5ms for all motors
+            </span>
+          ) : (
+            <span className="text-[10px] text-slate-400">Home = 1.5ms (1500µs)</span>
+          )}
         </div>
 
         {/* Joint 1: Base Yaw theta0 (s0) */}
@@ -124,7 +130,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <span className="text-sky-300 font-semibold">
               {angles3DOF.baseDeg.toFixed(1)}° &rarr;{' '}
               <span className="text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-800/50">
-                {angles3DOF.m1_us} µs
+                {angles3DOF.m1_us} µs ({(angles3DOF.m1_us / 1000).toFixed(2)} ms)
               </span>
             </span>
           </div>
@@ -148,7 +154,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <span className="text-emerald-300 font-semibold">
               {angles3DOF.shoulderDeg.toFixed(1)}° &rarr;{' '}
               <span className="text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-800/50">
-                {angles3DOF.m2_us} µs
+                {angles3DOF.m2_us} µs ({(angles3DOF.m2_us / 1000).toFixed(2)} ms)
               </span>
             </span>
           </div>
@@ -172,7 +178,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <span className="text-amber-300 font-semibold">
               {angles3DOF.elbowDeg.toFixed(1)}° &rarr;{' '}
               <span className="text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-800/50">
-                {angles3DOF.m3_us} µs
+                {angles3DOF.m3_us} µs ({(angles3DOF.m3_us / 1000).toFixed(2)} ms)
               </span>
             </span>
           </div>

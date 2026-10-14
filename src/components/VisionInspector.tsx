@@ -35,10 +35,10 @@ export const VisionInspector: React.FC<VisionInspectorProps> = ({
 }) => {
   const plateGeo = getHolderPlateGeometry(scale);
 
-  // Base tag positioned directly below the circular base hub
+  // Base tag positioned directly at world origin [0,0,0] (tagId_base = 2)
   const baseTagRob: Position3D = {
     x: 0,
-    y: -62.0,
+    y: 0,
     z: 0.0,
   };
 
@@ -103,7 +103,7 @@ export const VisionInspector: React.FC<VisionInspectorProps> = ({
   const tags: AprilTagPose[] = [
     {
       id: TAG_BASE,
-      name: `BASE TAG (ID ${TAG_BASE} - Base Plate Fiducial Origin)`,
+      name: `tagId_base = 2 (Base tag at world origin [0,0,0])`,
       worldX: Number(baseTagRob.x.toFixed(1)),
       worldY: Number(baseTagRob.y.toFixed(1)),
       z: baseTagRob.z,
@@ -120,7 +120,7 @@ export const VisionInspector: React.FC<VisionInspectorProps> = ({
     },
     {
       id: TAG_STAMP_LEFT,
-      name: `TAG ${TAG_STAMP_LEFT} (Left 55.7mm Square Plate / under A-C)`,
+      name: `tagId_rackA = 0 (Stamp rack reference tag 0 / under A-C)`,
       worldX: Number(leftTagRob.x.toFixed(1)),
       worldY: Number(leftTagRob.y.toFixed(1)),
       z: leftTagRob.z,
@@ -137,7 +137,7 @@ export const VisionInspector: React.FC<VisionInspectorProps> = ({
     },
     {
       id: TAG_STAMP_RIGHT,
-      name: `TAG ${TAG_STAMP_RIGHT} (Right 55.7mm Square Plate / under K-L-M)`,
+      name: `tagId_rackB = 1 (Stamp rack reference tag 1 / under K-L-M)`,
       worldX: Number(rightTagRob.x.toFixed(1)),
       worldY: Number(rightTagRob.y.toFixed(1)),
       z: rightTagRob.z,
@@ -154,7 +154,7 @@ export const VisionInspector: React.FC<VisionInspectorProps> = ({
     },
     {
       id: TAG_INK_PAD,
-      name: `TAG ${TAG_INK_PAD} (Ink Pad Station Tag)`,
+      name: `tagId_ink = 3 (Ink pad tag)`,
       worldX: Number(inkPadTagRob.x.toFixed(1)),
       worldY: Number(inkPadTagRob.y.toFixed(1)),
       z: inkPadTagRob.z,
@@ -171,7 +171,7 @@ export const VisionInspector: React.FC<VisionInspectorProps> = ({
     },
     {
       id: TAG_PAPER,
-      name: `TAG ${TAG_PAPER} (Paper Workpiece Tag)`,
+      name: `tagId_paper = 5 (Paper pad tag)`,
       worldX: Number(paperTagRob.x.toFixed(1)),
       worldY: Number(paperTagRob.y.toFixed(1)),
       z: paperTagRob.z,

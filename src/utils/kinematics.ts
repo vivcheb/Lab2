@@ -12,15 +12,44 @@ export const MATLAB_L3 = 120; // Forearm length (mm)
 export const DEFAULT_SCALE = 1.1; // mm to canvas pixels (calibrated for 279.4mm x 215.9mm paper)
 
 // AprilTag IDs matching ME416 Lab 2 Handout (Page 2) & MATLAB script:
-// "AprilTags (tag36h11, L = 50 mm): one on the base plate, ones at regular intervals on the stamps,
-//  one on the ink pad, one on the paper pad, and one on the RASTICrane itself"
-export const TAG_BASE = 0;          // Base Tag on base plate below RASTICrane base (Page 2)
-export const TAG_STAMP_LEFT = 100;  // Left Baseplate Tag (under A-C)
-export const TAG_STAMP_RIGHT = 101; // Right Baseplate Tag (under K-M)
-export const TAG_INK_PAD = 3;       // Ink Pad Tag
-export const TAG_PAPER = 4;         // Paper Target Tag
+// AprilTag IDs matching ME416 specifications:
+// tagId_base  = 2;   % Base tag at world origin [0,0,0]
+// tagId_ink   = 3;   % Ink pad tag
+// tagId_paper = 5;   % Paper pad tag 
+// tagId_rackA = 0;   % Stamp rack reference tag 0
+// tagId_rackB = 1;   % Stamp rack reference tag 1
+export const TAG_BASE = 2;          // Base tag at world origin [0,0,0]
+export const TAG_INK_PAD = 3;       // Ink pad tag
+export const TAG_PAPER = 5;         // Paper pad tag
+export const TAG_RACK_A = 0;        // Stamp rack reference tag 0 (under A-C)
+export const TAG_RACK_B = 1;        // Stamp rack reference tag 1 (under K-L-M)
+
+// Aliases for rack reference plates
+export const TAG_STAMP_LEFT = TAG_RACK_A;  // tagId_rackA = 0
+export const TAG_STAMP_RIGHT = TAG_RACK_B; // tagId_rackB = 1
+
 export const TAG_SIZE_METERS = 0.05; // 50mm (as specified in Handout L = 50 mm)
 export const TAG_SIZE_MM = 50;
+
+// Home posture constants: all motors set to 1.5ms (1500 microseconds)
+export const HOME_MOTOR_PULSE_MS = 1.5;
+export const HOME_MOTOR_PULSE_US = 1500;
+export const HOME_POSITION_3D: Position3D = {
+  x: 0,
+  y: 240, // mm (fully extended neutral reach where shoulder & elbow elevation are 0 deg)
+  z: 100, // mm (MATLAB_L1 = 100mm height)
+};
+export const HOME_ANGLES: JointAngles3DOF = {
+  baseDeg: 0,
+  shoulderDeg: 0,
+  elbowDeg: 0,
+  baseRad: 0,
+  shoulderRad: 0,
+  elbowRad: 0,
+  m1_us: HOME_MOTOR_PULSE_US,
+  m2_us: HOME_MOTOR_PULSE_US,
+  m3_us: HOME_MOTOR_PULSE_US,
+};
 
 // AprilTag mounting square plates on stamp holder (55.731mm by 55.731mm)
 export const HOLDER_PLATE_SIZE_MM = 55.731; // mm
@@ -50,6 +79,7 @@ export const WIPE_DISTANCE_MM = 22; // 22mm outward wipe to slide magnet off ste
  * and ME416 Handout notation:
  * theta0 (base yaw), theta1 (shoulder), theta2 (absolute elbow)
  * Coordinates in millimeters [U, V, W] where table is W = 0.
+ * Neutral home position yields 1.5ms (1500us) for all motors.
  */
 export function solve3DOF_IK(
   x: number,
@@ -59,10 +89,36 @@ export function solve3DOF_IK(
   L2: number = MATLAB_L2,
   L3: number = MATLAB_L3
 ): JointAngles3DOF | null {
-  const base_rad = Math.atan2(y, x); // phi = atan2(V, U)
-  const r = Math.hypot(x, y);        // rho = sqrt(U^2 + V^2)
+  // If at or close to home posture, return exact 1.5ms for all motors
+  if (Math.abs(x) < 0.1 && Math.abs(y - HOME_POSITION_3D.y) < 2 && Math.abs(z - HOME_POSITION_3D.z) < 2) {
+    return { ...HOME_ANGLES };
+  }
+
+  // Azimuth angle phi relative to center forward (x: lateral, y: forward)
+  // phi = 0 at center forward (yielding 1.5ms / 1500us on motor 1)
+  const base_rad = Math.atan2(x, y);
+  const r = Math.hypot(x, y);        // rho = sqrt(x^2 + y^2)
   const z_adj = z - L1;
   const D = Math.hypot(r, z_adj);
+
+  // Check physical reach limits
+  if (D > L2 + L3 || D < Math.abs(L2 - L3)) {
+    // If within slight tolerance of max reach
+    if (Math.abs(D - (L2 + L3)) < 1.0) {
+      const base_deg = radToDeg(base_rad);
+      return {
+        baseDeg: base_deg,
+        shoulderDeg: 0,
+        elbowDeg: 0,
+        baseRad: base_rad,
+        shoulderRad: 0,
+        elbowRad: 0,
+        m1_us: mapAngleToUs(base_deg, -45, 45, 1300, 1700),
+        m2_us: 1500,
+        m3_us: 1500,
+      };
+    }
+  }
 
   // Cosine rule for elbow
   const cos_elbow = (D * D - L2 * L2 - L3 * L3) / (2 * L2 * L3);

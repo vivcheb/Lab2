@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { SlotData, Position2D, Position3D } from '../types';
 import {
   solve3DOF_IK,
+  TAG_BASE,
+  TAG_RACK_A,
+  TAG_RACK_B,
   TAG_STAMP_LEFT,
   TAG_STAMP_RIGHT,
   TAG_INK_PAD,
@@ -87,10 +90,11 @@ intrinsics     = cameraIntrinsics(focalLength, principalPoint, imageSize);
 tagSize        = 0.05; % Tag size in meters (0.05m = 50mm)
 
 % Tag ID Assignments matching physical layout
-TAG_STAMP_LEFT  = ${TAG_STAMP_LEFT}; % Left Baseplate Tag (under A-C)
-TAG_STAMP_RIGHT = ${TAG_STAMP_RIGHT}; % Right Baseplate Tag (under K-L-M)
-TAG_INK_PAD     = ${TAG_INK_PAD};   % Ink Pad Tag
-TAG_PAPER       = ${TAG_PAPER};   % Paper Target Tag
+tagId_base  = ${TAG_BASE};   % Base tag at world origin [0,0,0]
+tagId_ink   = ${TAG_INK_PAD};   % Ink pad tag
+tagId_paper = ${TAG_PAPER};   % Paper pad tag 
+tagId_rackA = ${TAG_RACK_A};   % Stamp rack reference tag 0
+tagId_rackB = ${TAG_RACK_B};   % Stamp rack reference tag 1
 
 % Stamp Rack Radial Geometry Configuration (in meters / radians)
 R_INNER     = ${(R_INNER_MM / 1000).toFixed(3)};            % Distance from rack origin to inner arc (A-M)
@@ -105,7 +109,7 @@ fprintf('\\nStarting workspace scan to execute letter: %s...\\n', userInput);
 % --- 4. Detect AprilTags & Locate Workspace Objects ---
 tagPoses = containers.Map('KeyType','int32','ValueType','any');
 
-while numel(keys(tagPoses)) < 4
+while numel(keys(tagPoses)) < 5
     img = snapshot(cam);
     grayImg = rgb2gray(img);
     [ids, ~, poses] = readAprilTag(grayImg, tagFamily, intrinsics, tagSize);
@@ -113,20 +117,21 @@ while numel(keys(tagPoses)) < 4
     for i = 1:length(ids)
         tagPoses(ids(i)) = poses(i).Translation; % [X, Y, Z] in camera frame
     end
-    fprintf('Detected %d/4 tags...\\n', numel(keys(tagPoses)));
+    fprintf('Detected %d/5 tags...\\n', numel(keys(tagPoses)));
     pause(0.1);
 end
 
 disp('All AprilTags detected successfully!');
 
 % Convert key tag camera poses to Robot Base Frame
-pTagLeft  = camToRobot(tagPoses(TAG_STAMP_LEFT));
-pTagRight = camToRobot(tagPoses(TAG_STAMP_RIGHT));
-pInk      = camToRobot(tagPoses(TAG_INK_PAD));
-pPaper    = camToRobot(tagPoses(TAG_PAPER));
+pTagBase  = camToRobot(tagPoses(tagId_base));  % World origin [0, 0, 0]
+pTagRackA = camToRobot(tagPoses(tagId_rackA)); % Reference tag 0 (under ABC)
+pTagRackB = camToRobot(tagPoses(tagId_rackB)); % Reference tag 1 (under KLM)
+pInk      = camToRobot(tagPoses(tagId_ink));   % Ink pad tag
+pPaper    = camToRobot(tagPoses(tagId_paper)); % Paper pad tag
 
-% Center midpoint between Tag ${TAG_STAMP_LEFT} and Tag ${TAG_STAMP_RIGHT} acts as origin for stamp arc
-pRackOrigin = (pTagLeft + pTagRight) / 2;
+% Center midpoint between tagId_rackA and tagId_rackB acts as origin for stamp arc
+pRackOrigin = (pTagRackA + pTagRackB) / 2;
 
 % Calculate 3D pick coordinate for the requested letter stamp
 pStamp = getStampLocation(userInput, pRackOrigin, R_INNER, R_OUTER, THETA_START, THETA_END);
@@ -286,11 +291,12 @@ end`;
 
 [00:00.00] CONNECTED: COM3 @ 115200 baud (ESP32-S3 Terminator: LF)
 [00:00.02] INITIALIZING: Camera stream (640x480, tag36h11)
-[00:00.15] APRILTAG DETECTED: TAG ${TAG_STAMP_LEFT} (Plate L under A-C)
-[00:00.18] APRILTAG DETECTED: TAG ${TAG_STAMP_RIGHT} (Plate R under K-M)
-[00:00.22] APRILTAG DETECTED: TAG ${TAG_INK_PAD} (Ink Pad)
-[00:00.25] APRILTAG DETECTED: TAG ${TAG_PAPER} (Target Paper Workpiece)
-[00:00.30] RACK ORIGIN COMPUTED: pRackOrigin = (pTagLeft + pTagRight) / 2
+[00:00.12] APRILTAG DETECTED: TAG ${TAG_BASE} (tagId_base = 2, Base tag at world origin [0,0,0])
+[00:00.15] APRILTAG DETECTED: TAG ${TAG_RACK_A} (tagId_rackA = 0, Stamp rack reference tag 0)
+[00:00.18] APRILTAG DETECTED: TAG ${TAG_RACK_B} (tagId_rackB = 1, Stamp rack reference tag 1)
+[00:00.22] APRILTAG DETECTED: TAG ${TAG_INK_PAD} (tagId_ink = 3, Ink pad tag)
+[00:00.25] APRILTAG DETECTED: TAG ${TAG_PAPER} (tagId_paper = 5, Paper pad tag)
+[00:00.30] RACK ORIGIN COMPUTED: pRackOrigin = (pTagRackA + pTagRackB) / 2
 
 // --- 1/4: Picking up Stamp ['${selectedLetter}'] ---
 // Hover above slot (z + 0.05m):

@@ -9,6 +9,8 @@ import {
   DEFAULT_SCALE,
   getHolderPlateGeometry,
   TAG_BASE,
+  TAG_RACK_A,
+  TAG_RACK_B,
   TAG_STAMP_LEFT,
   TAG_STAMP_RIGHT,
   TAG_INK_PAD,
@@ -128,39 +130,39 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
       const startOffset = -size / 2 + margin;
 
       ctx.fillStyle = '#000000';
-      if (id === TAG_BASE) {
-        // Tag 0 (Base Tag directly below base)
-        ctx.fillRect(startOffset + cellSize, startOffset, cellSize, cellSize);
-        ctx.fillRect(startOffset, startOffset + cellSize, cellSize, cellSize);
-        ctx.fillRect(startOffset + cellSize * 2, startOffset + cellSize, cellSize, cellSize);
-        ctx.fillRect(startOffset + cellSize, startOffset + cellSize * 2, cellSize, cellSize);
-      } else if (id === TAG_STAMP_LEFT) {
-        // Tag 100 (Plate L - under A-C)
+      if (id === TAG_RACK_A) {
+        // Tag 0: tagId_rackA = 0 (Stamp rack reference tag 0 under A-C)
         ctx.fillRect(startOffset, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize * 2, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize, startOffset + cellSize, cellSize, cellSize);
         ctx.fillRect(startOffset, startOffset + cellSize * 2, cellSize, cellSize);
-      } else if (id === TAG_STAMP_RIGHT) {
-        // Tag 101 (Plate R - under K-M)
+      } else if (id === TAG_RACK_B) {
+        // Tag 1: tagId_rackB = 1 (Stamp rack reference tag 1 under K-L-M)
         ctx.fillRect(startOffset + cellSize, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset, startOffset + cellSize, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize * 2, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize * 2, startOffset + cellSize * 2, cellSize, cellSize);
+      } else if (id === TAG_BASE) {
+        // Tag 2: tagId_base = 2 (Base tag at world origin [0,0,0])
+        ctx.fillRect(startOffset + cellSize, startOffset, cellSize, cellSize);
+        ctx.fillRect(startOffset, startOffset + cellSize, cellSize, cellSize);
+        ctx.fillRect(startOffset + cellSize * 2, startOffset + cellSize, cellSize, cellSize);
+        ctx.fillRect(startOffset + cellSize, startOffset + cellSize * 2, cellSize, cellSize);
       } else if (id === TAG_INK_PAD) {
-        // Tag 3 (Corner of Ink Pad)
+        // Tag 3: tagId_ink = 3 (Ink pad tag)
         ctx.fillRect(startOffset + cellSize * 2, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset, startOffset + cellSize, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize * 2, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset, startOffset + cellSize * 2, cellSize, cellSize);
       } else {
-        // Tag 4 (Corner of Target Stamp Workpiece)
+        // Tag 5: tagId_paper = 5 (Paper pad tag)
         ctx.fillRect(startOffset, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize * 2, startOffset, cellSize, cellSize);
         ctx.fillRect(startOffset + cellSize * 2, startOffset + cellSize * 2, cellSize, cellSize);
       }
 
-      // Corner circles in neon green for fiducial visualizer matching image.png
+      // Corner circles in neon green for fiducial visualizer
       ctx.strokeStyle = '#22c55e';
       ctx.lineWidth = 1.5;
       const corners = [
@@ -175,24 +177,27 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
         ctx.stroke();
       });
 
-      // Label tag with ID matching image.png
+      // Label tag with ID & name matching ME416 specifications
       ctx.fillStyle = '#4ade80';
-      ctx.font = 'bold 9px monospace';
+      ctx.font = 'bold 8.5px monospace';
       ctx.textAlign = 'center';
-      if (id === TAG_STAMP_LEFT) {
-        ctx.fillText('TAG 0 (ABC)', 0, size / 2 + 10);
-        ctx.fillText('100', 0, size / 2 + 19);
-      } else if (id === TAG_STAMP_RIGHT) {
-        ctx.fillText('TAG 1 (KLM)', 0, size / 2 + 10);
-        ctx.fillText('101', 0, size / 2 + 19);
+      if (id === TAG_RACK_A) {
+        ctx.fillText('tagId_rackA = 0', 0, size / 2 + 10);
+        ctx.fillText('Rack Ref 0 (A-C)', 0, size / 2 + 19);
+      } else if (id === TAG_RACK_B) {
+        ctx.fillText('tagId_rackB = 1', 0, size / 2 + 10);
+        ctx.fillText('Rack Ref 1 (KLM)', 0, size / 2 + 19);
       } else if (id === TAG_BASE) {
-        ctx.fillText('BASE TAG', 0, size / 2 + 10);
+        ctx.fillText('tagId_base = 2', 0, size / 2 + 10);
+        ctx.fillText('Base [0,0,0]', 0, size / 2 + 19);
       } else if (id === TAG_INK_PAD) {
-        ctx.fillText('TAG 3 (INK)', 0, size / 2 + 10);
+        ctx.fillText('tagId_ink = 3', 0, size / 2 + 10);
+        ctx.fillText('Ink pad tag', 0, size / 2 + 19);
       } else if (id === TAG_PAPER) {
-        ctx.fillText('TAG 4 (PAPER)', 0, size / 2 + 10);
+        ctx.fillText('tagId_paper = 5', 0, size / 2 + 10);
+        ctx.fillText('Paper pad tag', 0, size / 2 + 19);
       } else {
-        ctx.fillText(`TAG ${id}`, 0, size / 2 + 10);
+        ctx.fillText(`tagId = ${id}`, 0, size / 2 + 10);
       }
 
       ctx.restore();

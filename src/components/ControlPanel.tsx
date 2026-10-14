@@ -61,7 +61,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onJogPolar,
 }) => {
   const [wordInput, setWordInput] = useState('ROBOT');
-  const [activeTab, setActiveTab] = useState<'cycle' | 'word' | 'manual'>('cycle');
+  const [activeTab, setActiveTab] = useState<'word' | 'manual'>('word');
 
   const handleWordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,143 +71,84 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      {/* 1. Mode Tabs */}
+      {/* 1. Mode Tabs (Word Sequencer & Manual Jog) */}
       <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
         <button
-          onClick={() => setActiveTab('cycle')}
-          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
-            activeTab === 'cycle'
-              ? 'bg-slate-800 text-sky-400 font-semibold shadow-xs'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Single Cycle
-        </button>
-        <button
           onClick={() => setActiveTab('word')}
-          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
+          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition flex items-center justify-center gap-1.5 ${
             activeTab === 'word'
               ? 'bg-slate-800 text-purple-400 font-semibold shadow-xs'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Word Sequencer
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Word Sequencer</span>
         </button>
         <button
           onClick={() => setActiveTab('manual')}
-          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
+          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition flex items-center justify-center gap-1.5 ${
             activeTab === 'manual'
               ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Manual Jog
+          <span>Manual Jog</span>
         </button>
       </div>
 
       {/* 2. Execution Panel according to Active Tab */}
       <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-xs flex flex-col gap-2.5">
-        {activeTab === 'cycle' && (
-          <>
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-300">Target Stamp Letter:</span>
-              <span className="text-[11px] text-slate-400 font-mono">2×13 (A–Z)</span>
-            </div>
-
-            {/* Row 1: Inner Arc (A to M - 13 letters) */}
-            <div className="flex flex-col gap-1.5">
-              <div>
-                <span className="text-[10px] text-slate-400 font-mono block mb-0.5">
-                  Inner Tier (A–M):
-                </span>
-                <div className="grid grid-cols-13 gap-0.5">
-                  {ALPHABET_26.slice(0, 13).map((letter) => (
-                    <button
-                      key={letter}
-                      disabled={isAnimating}
-                      onClick={() => onSelectLetter(letter)}
-                      className={`py-1 text-[11px] font-mono font-semibold rounded border transition ${
-                        selectedLetter === letter
-                          ? 'bg-purple-600 text-white border-purple-400'
-                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:bg-slate-800'
-                      }`}
-                    >
-                      {letter}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Row 2: Outer Arc (N to Z - 13 letters, includes Y & Z) */}
-              <div>
-                <span className="text-[10px] text-slate-400 font-mono block mb-0.5">
-                  Outer Tier (N–Z):
-                </span>
-                <div className="grid grid-cols-13 gap-0.5">
-                  {ALPHABET_26.slice(13, 26).map((letter) => (
-                    <button
-                      key={letter}
-                      disabled={isAnimating}
-                      onClick={() => onSelectLetter(letter)}
-                      className={`py-1 text-[11px] font-mono font-semibold rounded border transition ${
-                        selectedLetter === letter
-                          ? 'bg-purple-600 text-white border-purple-400'
-                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:bg-slate-800'
-                      }`}
-                    >
-                      {letter}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <button
-                disabled={isAnimating}
-                onClick={onRunCycle}
-                className="flex items-center justify-center gap-1.5 py-2 px-3 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-900/50 disabled:text-purple-300/40 text-white font-medium rounded border border-purple-400/40 transition shadow-sm"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>{isAnimating ? 'Running...' : `Stamp '${selectedLetter}'`}</span>
-              </button>
-
-              <button
-                disabled={isAnimating}
-                onClick={onHomeArm}
-                className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 font-medium rounded border border-slate-700 transition"
-              >
-                <Home className="w-3.5 h-3.5 text-sky-400" />
-                <span>Home Arm</span>
-              </button>
-            </div>
-          </>
-        )}
-
         {activeTab === 'word' && (
           <form onSubmit={handleWordSubmit} className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-300">Word Sequence Controller:</span>
+              <span className="text-[11px] text-purple-400 font-mono">4-Step Cycle / Letter</span>
+            </div>
+
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">
-                Enter Word or Acronym (Letters A–Z):
+                Enter Word or Acronym to Stamp (A–Z):
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={wordInput}
                   onChange={(e) => setWordInput(e.target.value.toUpperCase())}
-                  placeholder="e.g. ME416, ROBOT, STANFORD, XYZ"
+                  placeholder="e.g. ROBOT, ME416, STANFORD"
                   disabled={isAnimating}
-                  className="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded text-slate-100 font-mono text-xs focus:outline-hidden focus:border-purple-400 uppercase"
+                  className="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded text-slate-100 font-mono text-xs focus:outline-hidden focus:border-purple-400 uppercase tracking-wider"
                 />
                 <button
                   type="submit"
                   disabled={isAnimating || !wordInput.trim()}
-                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium rounded border border-purple-400/40 flex items-center gap-1.5 font-medium"
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium rounded border border-purple-400/40 flex items-center gap-1.5 transition shadow-sm"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Stamp Word</span>
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>{isAnimating ? 'Running...' : 'Execute Sequence'}</span>
                 </button>
               </div>
+            </div>
+
+            {/* Home Arm & Status */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+              <button
+                type="button"
+                disabled={isAnimating}
+                onClick={onHomeArm}
+                className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 font-medium rounded border border-slate-700 transition text-[11px]"
+              >
+                <Home className="w-3.5 h-3.5 text-sky-400" />
+                <span>Home Arm</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClearPaper}
+                className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded border border-slate-700 transition text-[11px]"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Clear Paper</span>
+              </button>
             </div>
           </form>
         )}

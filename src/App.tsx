@@ -20,10 +20,15 @@ import {
   DEFAULT_SCALE,
   ALPHABET_26,
   TAG_BASE,
+  TAG_RACK_A,
+  TAG_RACK_B,
   TAG_STAMP_LEFT,
   TAG_STAMP_RIGHT,
   TAG_INK_PAD,
   TAG_PAPER,
+  HOME_POSITION_3D,
+  HOME_ANGLES,
+  HOME_MOTOR_PULSE_US,
   radToDeg,
 } from './utils/kinematics';
 import { WorkspaceCanvas } from './components/WorkspaceCanvas';
@@ -48,16 +53,18 @@ export default function App() {
     elbowUp: false,
   });
 
-  // Current 3D Cartesian coordinates in robot frame (mm) [U, V, W]
-  const [currentPos3D, setCurrentPos3D] = useState<Position3D>({
-    x: 0,
-    y: 150,
-    z: 50, // Starts at hover elevation (+50mm)
-  });
+  // Current 3D Cartesian coordinates in robot frame (mm) [U, V, W] - Initialized at Home (1.5ms for all motors)
+  const [currentPos3D, setCurrentPos3D] = useState<Position3D>({ ...HOME_POSITION_3D });
 
-  // 2D polar projection angles for top-down canvas
+  // 2D polar projection angles for top-down canvas (facing forward towards -Y)
   const [q1, setQ1] = useState<number>(-Math.PI / 2);
-  const [q2, setQ2] = useState<number>(150 * armParams.scale);
+  const [q2, setQ2] = useState<number>(HOME_POSITION_3D.y * armParams.scale);
+
+  // References to guarantee smooth continuous transitions without back-and-forth snapping or stale closures
+  const currentPos3DRef = useRef<Position3D>({ ...HOME_POSITION_3D });
+  const q1Ref = useRef<number>(-Math.PI / 2);
+  const q2Ref = useRef<number>(HOME_POSITION_3D.y * armParams.scale);
+  const animFrameRef = useRef<number | null>(null);
 
   // Component Layout Positions (canvas px coordinates relative to base origin matching image.png)
   const [holderPos, setHolderPos] = useState<Position2D>({ x: 0, y: 0 });
@@ -75,7 +82,7 @@ export default function App() {
   const [holdingLetter, setHoldingLetter] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [cyclePhase, setCyclePhase] = useState<CyclePhase>('IDLE');
-  const [statusMessage, setStatusMessage] = useState('Idle / Ready (COM3)');
+  const [statusMessage, setStatusMessage] = useState('Standby (1.5ms all motors)');
   const [isStampingContact, setIsStampingContact] = useState(false);
   const [isInkContact, setIsInkContact] = useState(false);
   const [stampedMarks, setStampedMarks] = useState<StampedMark[]>([]);
@@ -92,35 +99,24 @@ export default function App() {
     {
       id: '2',
       timestamp: new Date().toLocaleTimeString([], { hour12: false }),
-      message: 'RASTICrane 3-DOF Arm initialized: L1=100mm, L2=120mm, L3=120mm.',
+      message: 'RASTICrane 3-DOF Arm initialized at Home posture: 1.5ms (1500µs) for all motors.',
       level: 'info',
     },
     {
       id: '3',
       timestamp: new Date().toLocaleTimeString([], { hour12: false }),
-      message: `Fiducials verified: BASE TAG (${TAG_BASE}), TAG ${TAG_STAMP_LEFT} (A-C / 55.7mm Plate), TAG ${TAG_STAMP_RIGHT} (K-L-M / 55.7mm Plate), TAG ${TAG_INK_PAD} (Ink), TAG ${TAG_PAPER} (Paper). All AprilTags sized to 50mm x 50mm.`,
+      message: `Fiducials verified: tagId_base = 2 (Origin [0,0,0]), tagId_rackA = 0 (Rack Ref 0), tagId_rackB = 1 (Rack Ref 1), tagId_ink = 3 (Ink pad), tagId_paper = 5 (Paper pad). All tags 50mm x 50mm.`,
       level: 'success',
     },
   ]);
-
-  const animFrameRef = useRef<number | null>(null);
 
   // Calculate 26 slots dynamically based on holder position and scale
   const slotData = calculateSlotData(holderPos, armParams.scale);
 
   // Calculate active 3-DOF joint angles and PWM pulses for current position
   const currentIK =
-    solve3DOF_IK(currentPos3D.x, currentPos3D.y, currentPos3D.z, armParams.L1, armParams.L2, armParams.L3) || {
-      baseDeg: 0,
-      shoulderDeg: 0,
-      elbowDeg: 0,
-      baseRad: 0,
-      shoulderRad: 0,
-      elbowRad: 0,
-      m1_us: 1500,
-      m2_us: 1500,
-      m3_us: 1500,
-    };
+    solve3DOF_IK(currentPos3D.x, currentPos3D.y, currentPos3D.z, armParams.L1, armParams.L2, armParams.L3) ||
+    HOME_ANGLES;
 
   const isHovering = currentPos3D.z > 15;
 
@@ -138,7 +134,7 @@ export default function App() {
     []
   );
 
-  // Smooth 3D Arm Motion to Target Coordinates matching moveToPosition(s, x, y, z)
+  // Smooth 3D Arm Motion to Target Coordinates: timestamp-based, continuous, no lag or reversing
   const moveToPosition3D = useCallback(
     (
       targetX_mm: number,
@@ -147,18 +143,25 @@ export default function App() {
       phaseName: CyclePhase,
       onComplete?: () => void
     ) => {
-      const ik = solve3DOF_IK(
-        targetX_mm,
-        targetY_mm,
-        targetZ_mm,
-        armParams.L1,
-        armParams.L2,
-        armParams.L3
-      );
+      const isHomeMove = phaseName === 'RETURN_HOME';
+      const finalTargetX = isHomeMove ? HOME_POSITION_3D.x : targetX_mm;
+      const finalTargetY = isHomeMove ? HOME_POSITION_3D.y : targetY_mm;
+      const finalTargetZ = isHomeMove ? HOME_POSITION_3D.z : targetZ_mm;
+
+      const ik = isHomeMove
+        ? HOME_ANGLES
+        : solve3DOF_IK(
+            finalTargetX,
+            finalTargetY,
+            finalTargetZ,
+            armParams.L1,
+            armParams.L2,
+            armParams.L3
+          );
 
       if (!ik) {
         addLog(
-          `Target [${targetX_mm.toFixed(0)}, ${targetY_mm.toFixed(0)}, ${targetZ_mm.toFixed(0)}] outside RASTICrane reach!`,
+          `Target [${finalTargetX.toFixed(0)}, ${finalTargetY.toFixed(0)}, ${finalTargetZ.toFixed(0)}] outside RASTICrane reach!`,
           'warn'
         );
         setIsAnimating(false);
@@ -167,64 +170,104 @@ export default function App() {
         return;
       }
 
-      addLog(
-        `> Serial COM3 TX: s0 ${ik.m1_us} | ssh ${ik.m2_us} | sel ${ik.m3_us}`,
-        'kinematics'
-      );
+      if (isHomeMove) {
+        addLog(
+          `> Serial TX: M1 1500 | M2 1500 | M3 1500 (Home posture: 1.5ms all motors)`,
+          'kinematics'
+        );
+      } else {
+        addLog(
+          `> Serial TX: M1 ${ik.m1_us} | M2 ${ik.m2_us} | M3 ${ik.m3_us}`,
+          'kinematics'
+        );
+      }
 
       setIsAnimating(true);
       setCyclePhase(phaseName);
-      setStatusMessage(`Moving to [${targetX_mm.toFixed(0)}, ${targetY_mm.toFixed(0)}, ${targetZ_mm.toFixed(0)}]`);
+      setStatusMessage(
+        isHomeMove
+          ? 'Homing Arm (1.5ms on all motors)'
+          : `Moving to [${finalTargetX.toFixed(0)}, ${finalTargetY.toFixed(0)}, ${finalTargetZ.toFixed(0)}]`
+      );
 
       // Target canvas polar coordinates
-      const targetCanvasX = targetX_mm * armParams.scale;
-      const targetCanvasY = -targetY_mm * armParams.scale;
-      const targetTheta = Math.atan2(targetCanvasY, targetCanvasX);
+      const targetCanvasX = finalTargetX * armParams.scale;
+      const targetCanvasY = -finalTargetY * armParams.scale;
       const targetReach = Math.hypot(targetCanvasX, targetCanvasY);
 
-      const startQ1 = q1;
-      const startQ2 = q2;
-      const startPos = { ...currentPos3D };
+      // Start strictly from the current instantaneous physical pose (prevents backward snapping)
+      const startPos = { ...currentPos3DRef.current };
+      const startQ1 = q1Ref.current;
+      const startQ2 = q2Ref.current;
+
+      const targetTheta = targetReach > 1 ? Math.atan2(targetCanvasY, targetCanvasX) : startQ1;
 
       let dTheta = targetTheta - startQ1;
       while (dTheta > Math.PI) dTheta -= 2 * Math.PI;
       while (dTheta < -Math.PI) dTheta += 2 * Math.PI;
 
-      let progress = 0;
-      const step = 0.05;
+      // Pure vertical transitions (e.g. lift, lower to stamp/ink) must not rotate or swing
+      const isVerticalOnly =
+        Math.abs(finalTargetX - startPos.x) < 0.3 && Math.abs(finalTargetY - startPos.y) < 0.3;
 
-      const animate = () => {
-        progress += step;
-        if (progress >= 1) {
-          setQ1(targetTheta);
-          setQ2(targetReach);
-          setCurrentPos3D({ x: targetX_mm, y: targetY_mm, z: targetZ_mm });
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+
+      const duration = isVerticalOnly ? 240 : 420;
+      const startTime = performance.now();
+
+      const animate = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        // Smooth cubic ease-in-out curve for natural, non-laggy motion
+        const ease =
+          progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+        const currentTheta = isVerticalOnly ? startQ1 : startQ1 + dTheta * ease;
+        const currentReachVal = isVerticalOnly ? startQ2 : startQ2 + (targetReach - startQ2) * ease;
+        const currentX = startPos.x + (finalTargetX - startPos.x) * ease;
+        const currentY = startPos.y + (finalTargetY - startPos.y) * ease;
+        const currentZ = startPos.z + (finalTargetZ - startPos.z) * ease;
+
+        // Synchronously update refs and state to preserve continuity
+        q1Ref.current = currentTheta;
+        q2Ref.current = currentReachVal;
+        currentPos3DRef.current = { x: currentX, y: currentY, z: currentZ };
+
+        setQ1(currentTheta);
+        setQ2(currentReachVal);
+        setCurrentPos3D({ x: currentX, y: currentY, z: currentZ });
+
+        if (progress < 1) {
+          animFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          animFrameRef.current = null;
+          const finalTheta = isVerticalOnly ? startQ1 : targetTheta;
+          const finalReach = isVerticalOnly ? startQ2 : targetReach;
+
+          q1Ref.current = finalTheta;
+          q2Ref.current = finalReach;
+          currentPos3DRef.current = { x: finalTargetX, y: finalTargetY, z: finalTargetZ };
+
+          setQ1(finalTheta);
+          setQ2(finalReach);
+          setCurrentPos3D({ x: finalTargetX, y: finalTargetY, z: finalTargetZ });
+
           if (onComplete) {
             onComplete();
           } else {
             setIsAnimating(false);
             setCyclePhase('IDLE');
-            setStatusMessage('Idle / Ready');
+            setStatusMessage(isHomeMove ? 'Standby (1.5ms all motors)' : 'Idle / Ready');
           }
-          return;
         }
-
-        const ease = 0.5 - Math.cos(progress * Math.PI) / 2;
-        setQ1(startQ1 + dTheta * ease);
-        setQ2(startQ2 + (targetReach - startQ2) * ease);
-        setCurrentPos3D({
-          x: startPos.x + (targetX_mm - startPos.x) * ease,
-          y: startPos.y + (targetY_mm - startPos.y) * ease,
-          z: startPos.z + (targetZ_mm - startPos.z) * ease,
-        });
-
-        animFrameRef.current = requestAnimationFrame(animate);
       };
 
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = requestAnimationFrame(animate);
     },
-    [armParams, q1, q2, currentPos3D, addLog]
+    [armParams.L1, armParams.L2, armParams.L3, armParams.scale, addLog]
   );
 
   // Execute Full Pick-and-Place Cycle with Handout Page 3 Wiping Motion Release
@@ -253,38 +296,38 @@ export default function App() {
       // Azimuth of the stamp on paper (Handout Page 5: "its rotation is the yaw it was pressed at")
       const pressYawRad = Math.atan2(paperTargetRobY, paperTargetRobX);
 
-      addLog(`Starting pick-and-place cycle for letter: ${letter}...`, 'info');
-      addLog(`All 5 fiducials tracked (BASE, 100, 101, 3, 4). Table homography H locked.`, 'success');
+      addLog(`=== Starting 4-Step Sequence for Stamp [${letter}] ===`, 'info');
 
-      // -------------------------------------------------------------
-      // Step 1: Lower onto the disc & acquire stamp
-      // -------------------------------------------------------------
-      addLog(`1. Lower onto disc: Magnet connects to steel disc of '${letter}' from above...`, 'info');
-      // Hover above slot (+50mm)
+      // --- 1/4: Picking up Stamp [letter] ---
+      addLog(`1/4: Picking up Stamp [${letter}] from rack...`, 'info');
+      // Hover above stamp (z + 50mm)
       moveToPosition3D(slotRobX, slotRobY, 50, 'APPROACH_SLOT', () => {
-        // Lower onto steel disc (0mm)
+        // Lower to grasp (z = 0mm)
         moveToPosition3D(slotRobX, slotRobY, 0, 'PICK_STAMP', () => {
           setHoldingLetter(letter);
           addLog(`> Magnet snapped onto steel disc of stamp '${letter}'.`, 'success');
 
-          // Step 2: Lift straight up out of holder (+50mm)
+          // Lift up (z + 50mm)
           moveToPosition3D(slotRobX, slotRobY, 50, 'LIFT_STAMP', () => {
-            // ---------------------------------------------------------
-            // Inking: Re-ink stamp on ink pad
-            // ---------------------------------------------------------
-            addLog(`2. Transport to ink pad: Inking stamp in reservoir...`, 'info');
+            // --- 2/4: Re-inking Stamp on Ink Pad ---
+            addLog(`2/4: Re-inking Stamp [${letter}] on Ink Pad...`, 'info');
+            // Hover above ink pad (z + 50mm)
             moveToPosition3D(inkRobX, inkRobY, 50, 'MOVE_TO_INK', () => {
+              // Press into ink (z = 0mm)
               moveToPosition3D(inkRobX, inkRobY, 0, 'DIP_INK', () => {
                 setIsInkContact(true);
-                addLog(`> Dipped stamp into ink pad (pause 0.5s)...`, 'info');
+                addLog(`> Pressed into ink reservoir (pause 0.5s)...`, 'info');
 
                 setTimeout(() => {
                   setIsInkContact(false);
+                  // Lift up (z + 50mm)
                   moveToPosition3D(inkRobX, inkRobY, 50, 'MOVE_TO_PAPER', () => {
-                    // -----------------------------------------------------
-                    // Placing: Approach destination on paper & press
-                    // -----------------------------------------------------
-                    addLog(`3. Place onto paper: Pressing letter '${letter}' (radial yaw: ${radToDeg(pressYawRad).toFixed(1)}°)...`, 'info');
+                    // --- 3/4: Drawing / Stamping letter on Paper ---
+                    addLog(
+                      `3/4: Drawing letter '${letter}' on Paper (radial yaw: ${radToDeg(pressYawRad).toFixed(1)}°)...`,
+                      'info'
+                    );
+                    // Hover over paper (z + 50mm)
                     moveToPosition3D(paperTargetRobX, paperTargetRobY, 50, 'MOVE_TO_PAPER', () => {
                       const strokes = getLetterStrokes(
                         letter,
@@ -295,6 +338,7 @@ export default function App() {
                         armParams.scale
                       );
 
+                      // Contact plane (z = 0mm)
                       moveToPosition3D(paperTargetRobX, paperTargetRobY, 0, 'STAMP_PAPER', () => {
                         setIsStampingContact(true);
 
@@ -317,33 +361,25 @@ export default function App() {
 
                         setTimeout(() => {
                           setIsStampingContact(false);
-                          // Lift off paper (+50mm)
+                          // Lift off paper (z + 50mm)
                           moveToPosition3D(paperTargetRobX, paperTargetRobY, 50, 'LIFT_PAPER', () => {
-                            // -------------------------------------------------
-                            // Handout Page 3: 3. Put down in holder & 4. Wipe outward!
-                            // -------------------------------------------------
-                            addLog(`4. Return to holder: Lower into pocket then wipe outward to release...`, 'info');
+                            // --- 4/4: Returning Stamp to Holder ---
+                            addLog(`4/4: Returning Stamp [${letter}] to Holder...`, 'info');
+                            // Hover above slot (z + 50mm)
                             moveToPosition3D(slotRobX, slotRobY, 50, 'RETURN_TO_SLOT', () => {
-                              // 3. Put down in the holder (0mm)
+                              // Lower to slot to release (z = 0mm)
                               moveToPosition3D(slotRobX, slotRobY, 0, 'PUT_DOWN_HOLDER', () => {
-                                // 4. Wipe outward: along rho at constant phi
-                                const slotRho = Math.hypot(slotRobX, slotRobY);
-                                const slotPhi = Math.atan2(slotRobY, slotRobX);
-                                const wipeRho = slotRho + WIPE_DISTANCE_MM;
-                                const wipeRobX = wipeRho * Math.cos(slotPhi);
-                                const wipeRobY = wipeRho * Math.sin(slotPhi);
+                                setHoldingLetter(null);
+                                addLog(`> Stamp '${letter}' returned to holder rack.`, 'success');
 
-                                addLog(`> Wiping outward along ρ (+${WIPE_DISTANCE_MM}mm): Lip holds stamp back as magnet slides off!`, 'info');
-                                moveToPosition3D(wipeRobX, wipeRobY, 5, 'WIPE_OUTWARD', () => {
-                                  setHoldingLetter(null);
-                                  addLog(`> Stamp '${letter}' released into holder lip.`, 'success');
-
-                                  // Retract straight up (+50mm) and return to standby
-                                  moveToPosition3D(wipeRobX, wipeRobY, 50, 'RETURN_HOME', () => {
+                                // Lift up to safe clearance (z + 50mm)
+                                moveToPosition3D(slotRobX, slotRobY, 50, 'LIFT_STAMP', () => {
+                                  // Return to Home (1.5ms for all motors)
+                                  moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME', () => {
                                     setIsAnimating(false);
                                     setCyclePhase('IDLE');
-                                    setStatusMessage('Task complete! (Standby)');
-                                    addLog(`Task complete! All servos in standby.`, 'success');
+                                    setStatusMessage('Task complete! All servos at Home (1.5ms).');
+                                    addLog(`Task complete! All servos at Home posture (1.5ms).`, 'success');
                                     if (onCycleDone) onCycleDone();
                                   });
                                 });
@@ -425,11 +461,11 @@ export default function App() {
     [isAnimating, armParams.scale, paperPos, addLog, runCycleForLetter]
   );
 
-  // Manual Home Arm
+  // Manual Home Arm - Home is 1.5ms (1500µs) for all motors (M1, M2, M3)
   const handleHomeArm = () => {
     if (isAnimating) return;
-    addLog('Homing RASTICrane to safe standby posture...', 'info');
-    moveToPosition3D(0, 150, 50, 'RETURN_HOME');
+    addLog('Homing RASTICrane: Setting 1.5ms (1500µs) for all motors (M1, M2, M3)...', 'info');
+    moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME');
   };
 
   // Reset Component Layout Positions
@@ -475,8 +511,9 @@ export default function App() {
   const handleJogPolar = (thetaDeg: number, reachMm: number) => {
     if (isAnimating) return;
     const phiRad = (thetaDeg * Math.PI) / 180;
-    const xMm = reachMm * Math.cos(phiRad);
-    const yMm = reachMm * Math.sin(phiRad);
+    // x is lateral (sin phi), y is forward (cos phi)
+    const xMm = reachMm * Math.sin(phiRad);
+    const yMm = reachMm * Math.cos(phiRad);
     moveToPosition3D(xMm, yMm, currentPos3D.z, 'APPROACH_SLOT');
   };
 
@@ -489,8 +526,8 @@ export default function App() {
 
   // Calibrate Holder via Vision
   const handleCalibrateHolder = () => {
-    addLog(`Rescanning camera frame: computing table homography H from base tag...`, 'info');
-    addLog(`Tags detected: BASE (0), STAMP_L (100), STAMP_R (101), INK (3), PAPER (4).`, 'success');
+    addLog(`Rescanning camera frame: computing table homography H from base tag (tagId_base = 2)...`, 'info');
+    addLog(`Tags detected: tagId_base (2), tagId_rackA (0), tagId_rackB (1), tagId_ink (3), tagId_paper (5).`, 'success');
   };
 
   return (
@@ -705,7 +742,7 @@ export default function App() {
             manualX={currentPos3D.x}
             manualY={currentPos3D.y}
             onJogCartesian={handleJogCartesian}
-            manualThetaDeg={(Math.atan2(currentPos3D.y, currentPos3D.x) * 180) / Math.PI}
+            manualThetaDeg={(Math.atan2(currentPos3D.x, currentPos3D.y) * 180) / Math.PI}
             manualReachMm={Math.hypot(currentPos3D.x, currentPos3D.y)}
             onJogPolar={handleJogPolar}
           />
