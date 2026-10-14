@@ -188,11 +188,11 @@ export default function App() {
 
       if (isHomeMove) {
         addLog(
-          `> Serial TX: M1 1500 | M2 1500 | M3 1500 (Home posture: 1.5ms all motors)`,
+          `> Serial TX: M1 2500 | M2 2500 | M3 2500 (Home posture: 2500µs / +90°)`,
           'kinematics'
         );
         if (serialManager.getIsConnected() && isMirrorEnabled) {
-          serialManager.homeArm();
+          serialManager.homeArm(2500);
         }
       } else {
         addLog(
@@ -208,7 +208,7 @@ export default function App() {
       setCyclePhase(phaseName);
       setStatusMessage(
         isHomeMove
-          ? 'Homing Arm (1.5ms on all motors)'
+          ? 'Homing Arm (2500µs / +90°)'
           : `Moving to [${finalTargetX.toFixed(0)}, ${finalTargetY.toFixed(0)}, ${finalTargetZ.toFixed(0)}]`
       );
 
@@ -483,10 +483,13 @@ export default function App() {
     [isAnimating, armParams.scale, paperPos, addLog, runCycleForLetter]
   );
 
-  // Manual Home Arm - Home is 1.5ms (1500µs) for all motors (M1, M2, M3)
+  // Manual Home Arm - Home is 2500us (+90 deg), zero is 1500us (0 deg)
   const handleHomeArm = () => {
     if (isAnimating) return;
-    addLog('Homing RASTICrane: Setting 1.5ms (1500µs) for all motors (M1, M2, M3)...', 'info');
+    addLog('Homing RASTICrane: Setting Home position (2500µs / +90°)...', 'info');
+    if (serialManager.getIsConnected()) {
+      serialManager.homeArm(HOME_MOTOR_PULSE_US);
+    }
     moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME');
   };
 
@@ -688,6 +691,18 @@ export default function App() {
                 onToggleMirror={setIsMirrorEnabled}
                 onClose={() => setActiveTab('workspace')}
                 addLog={addLog}
+                onRunWordSequence={runWordSequence}
+                isAnimating={isAnimating}
+                cyclePhase={cyclePhase}
+                activeLetter={activeTargetLetter}
+                selectedLetter={selectedLetter}
+                onSelectLetter={(l) => {
+                  setSelectedLetter(l);
+                  const slot = slotData.find((s) => s.letter === l);
+                  if (slot) {
+                    handleSelectSlot(l, { x: slot.worldX, y: slot.worldY });
+                  }
+                }}
               />
             </div>
           )}

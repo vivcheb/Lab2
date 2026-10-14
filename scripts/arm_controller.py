@@ -21,7 +21,8 @@ import argparse
 import serial
 import serial.tools.list_ports
 
-HOME_US = 1500
+ZERO_US = 1500
+HOME_US = 2500
 
 def list_available_ports():
     ports = serial.tools.list_ports.comports()
@@ -66,13 +67,14 @@ def main():
         sys.exit(1)
 
     print("Connected successfully!")
-    print("Homing arm (1.5ms / 1500us on all motors)...")
-    send_command(ser, "HOME")
+    print("Homing arm (2500us / +90 deg on all motors)...")
+    send_command(ser, "M1 2500\nM2 2500\nM3 2500\nPOS 2500 2500 2500\nHOME")
 
     print("\n--- Command Options ---")
-    print("  home               -> Set all motors to 1500us (1.5ms)")
-    print("  pos <m1> <m2> <m3> -> Set individual pulse widths (e.g. pos 1500 1480 1520)")
-    print("  m1 <us>            -> Base motor (e.g. m1 1450)")
+    print("  home               -> Set all motors to 2500us (+90 deg)")
+    print("  zero               -> Set all motors to 1500us (0 deg)")
+    print("  pos <m1> <m2> <m3> -> Set individual pulse widths (e.g. pos 1500 2000 2500)")
+    print("  m1 <us>            -> Base motor (e.g. m1 2000)")
     print("  m2 <us>            -> Shoulder motor (e.g. m2 1520)")
     print("  m3 <us>            -> Elbow motor (e.g. m3 1500)")
     print("  stop               -> Emergency stop (detach servos)")

@@ -59,6 +59,12 @@ class WebSerialManager {
       this.port = await (navigator as any).serial.requestPort();
       await this.port.open({ baudRate: this.baudRate });
 
+      try {
+        await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+      } catch (e) {
+        // Some virtual ports don't support setSignals; safe to continue
+      }
+
       const textEncoder = new TextEncoderStream();
       textEncoder.readable.pipeTo(this.port.writable);
       this.writer = textEncoder.writable.getWriter();
@@ -102,7 +108,9 @@ class WebSerialManager {
   public async sendCommand(cmd: string): Promise<boolean> {
     if (!this.writer) return false;
     try {
-      const line = cmd.endsWith('\n') ? cmd : `${cmd}\n`;
+      const clean = cmd.trim();
+      if (!clean) return true;
+      const line = `${clean}\r\n`;
       await this.writer.write(line);
       return true;
     } catch (err) {
@@ -112,16 +120,32 @@ class WebSerialManager {
   }
 
   public async sendMotors(m1_us: number, m2_us: number, m3_us: number): Promise<boolean> {
-    const cmd = `POS ${Math.round(m1_us)} ${Math.round(m2_us)} ${Math.round(m3_us)}\n`;
-    return this.sendCommand(cmd);
+    const s1 = Math.round(m1_us);
+    const s2 = Math.round(m2_us);
+    const s3 = Math.round(m3_us);
+    // Send individual M1, M2, M3 and combined POS so any Arduino/ESP32 parser catches it
+    await this.sendCommand(`M1 ${s1}`);
+    await this.sendCommand(`M2 ${s2}`);
+    await this.sendCommand(`M3 ${s3}`);
+    await this.sendCommand(`POS ${s1} ${s2} ${s3}`);
+    return true;
   }
 
-  public async homeArm(): Promise<boolean> {
-    return this.sendCommand('HOME\n');
+  public async homeArm(homeUs: number = 2500): Promise<boolean> {
+    const s = Math.round(homeUs);
+    // Send individual M1, M2, M3, POS, and HOME to guarantee execution
+    await this.sendCommand(`M1 ${s}`);
+    await this.sendCommand(`M2 ${s}`);
+    await this.sendCommand(`M3 ${s}`);
+    await this.sendCommand(`POS ${s} ${s} ${s}`);
+    await this.sendCommand(`HOME`);
+    return true;
   }
 
   public async stopArm(): Promise<boolean> {
-    return this.sendCommand('STOP\n');
+    await this.sendCommand('STOP');
+    await this.sendCommand('ESTOP');
+    return true;
   }
 
   private async startReading() {

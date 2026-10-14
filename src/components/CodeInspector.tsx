@@ -199,10 +199,10 @@ end
 function moveToPosition(s, x, y, z)
     [base_deg, shoulder_deg, elbow_deg] = solve3DOF_IK(x, y, z);
     
-    % Map joint angles to microsecond pulse widths [1300, 1700]
-    m1_us = mapAngleToUs(base_deg,     -45, 45, 1300, 1700);
-    m2_us = mapAngleToUs(shoulder_deg, -45, 45, 1300, 1700);
-    m3_us = mapAngleToUs(elbow_deg,    -45, 45, 1300, 1700);
+    % Map joint angles to microsecond pulse widths [1500, 2500] (0 deg = 1500us, +90 deg = 2500us)
+    m1_us = mapAngleToUs(abs(base_deg),     0, 90, 1500, 2500);
+    m2_us = mapAngleToUs(abs(shoulder_deg), 0, 90, 1500, 2500);
+    m3_us = mapAngleToUs(abs(elbow_deg),    0, 90, 1500, 2500);
     
     % Write plain-text Serial string expected by Arduino loop()
     writeline(s, sprintf('M1 %d', m1_us));
@@ -254,7 +254,7 @@ end
 function us = mapAngleToUs(angleDeg, minDeg, maxDeg, minUs, maxUs)
     clampedAngle = max(minDeg, min(maxDeg, angleDeg));
     us = round(minUs + (clampedAngle - minDeg) * (maxUs - minUs) / (maxDeg - minDeg));
-    us = max(1300, min(1700, us));
+    us = max(1500, min(2500, us));
 end
 
 % 3-DOF Analytical Inverse Kinematics solver

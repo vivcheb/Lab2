@@ -43,11 +43,10 @@ Servo servo2; // Shoulder
 Servo servo3; // Elbow
 
 // Pulse Limits (Microseconds)
-const int MIN_PULSE_US = 1100;
-const int MAX_PULSE_US = 1900;
-const int SAFE_MIN_US  = 1300; // -45 deg
-const int SAFE_MAX_US  = 1700; // +45 deg
-const int HOME_US      = 1500; // 1.5ms neutral home
+const int MIN_PULSE_US = 1000;
+const int MAX_PULSE_US = 2600;
+const int ZERO_US      = 1500; // 0 deg position (1.5ms)
+const int HOME_US      = 2500; // Home position (+90 deg, 2.5ms)
 
 // Current target microsecond values
 int currentM1 = HOME_US;
@@ -94,7 +93,15 @@ void setHome() {
   currentM2 = HOME_US;
   currentM3 = HOME_US;
   applyPulses();
-  Serial.println("OK: Homed all motors to 1.5ms (1500us)");
+  Serial.println("OK: Homed all motors to 2500us (+90 deg)");
+}
+
+void setZero() {
+  currentM1 = ZERO_US;
+  currentM2 = ZERO_US;
+  currentM3 = ZERO_US;
+  applyPulses();
+  Serial.println("OK: Zeroed all motors to 1500us (0 deg)");
 }
 
 void setup() {
@@ -122,6 +129,11 @@ void parseAndExecuteCommand(String cmd) {
 
   if (cmd == "HOME") {
     setHome();
+    return;
+  }
+
+  if (cmd == "ZERO") {
+    setZero();
     return;
   }
 

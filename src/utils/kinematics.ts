@@ -31,9 +31,11 @@ export const TAG_STAMP_RIGHT = TAG_RACK_B; // tagId_rackB = 1
 export const TAG_SIZE_METERS = 0.05; // 50mm (as specified in Handout L = 50 mm)
 export const TAG_SIZE_MM = 50;
 
-// Home posture constants: all motors set to 1.5ms (1500 microseconds)
-export const HOME_MOTOR_PULSE_MS = 1.5;
-export const HOME_MOTOR_PULSE_US = 1500;
+// Zero degree posture: 1500us (1.5ms). Home posture: 2500us (2.5ms, +90 deg)
+export const ZERO_DEG_MOTOR_PULSE_US = 1500;
+export const ZERO_DEG_MOTOR_PULSE_MS = 1.5;
+export const HOME_MOTOR_PULSE_MS = 2.5;
+export const HOME_MOTOR_PULSE_US = 2500;
 export const HOME_POSITION_3D: Position3D = {
   x: 0,
   y: 240, // mm (fully extended neutral reach where shoulder & elbow elevation are 0 deg)
@@ -113,9 +115,9 @@ export function solve3DOF_IK(
         baseRad: base_rad,
         shoulderRad: 0,
         elbowRad: 0,
-        m1_us: mapAngleToUs(base_deg, -45, 45, 1300, 1700),
-        m2_us: 1500,
-        m3_us: 1500,
+        m1_us: mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500),
+        m2_us: HOME_MOTOR_PULSE_US,
+        m3_us: HOME_MOTOR_PULSE_US,
       };
     }
   }
@@ -134,10 +136,11 @@ export function solve3DOF_IK(
   const shoulder_deg = radToDeg(shoulder_rad);
   const elbow_deg = radToDeg(elbow_rad);
 
-  // Map joint angles to microsecond pulse widths [1300, 1700] over [-45, 45] deg (s0, ssh, sel)
-  const m1_us = mapAngleToUs(base_deg, -45, 45, 1300, 1700);
-  const m2_us = mapAngleToUs(shoulder_deg, -45, 45, 1300, 1700);
-  const m3_us = mapAngleToUs(elbow_deg, -45, 45, 1300, 1700);
+  // Map joint angles to microsecond pulse widths [1500, 2500] over [0, 90] deg:
+  // 0 deg = 1500us (1.5ms), +90 deg = 2500us (2.5ms)
+  const m1_us = mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500);
+  const m2_us = mapAngleToUs(Math.abs(shoulder_deg), 0, 90, 1500, 2500);
+  const m3_us = mapAngleToUs(Math.abs(elbow_deg), 0, 90, 1500, 2500);
 
   return {
     baseDeg: base_deg,
@@ -154,14 +157,14 @@ export function solve3DOF_IK(
 
 /**
  * Linear mapping helper for joint angles to microsecond PWM pulse width
- * Matching MATLAB function mapAngleToUs(angleDeg, minDeg, maxDeg, minUs, maxUs)
+ * 0 deg (1500 us) to +90 deg (2500 us)
  */
 export function mapAngleToUs(
   angleDeg: number,
-  minDeg: number = -45,
-  maxDeg: number = 45,
-  minUs: number = 1300,
-  maxUs: number = 1700
+  minDeg: number = 0,
+  maxDeg: number = 90,
+  minUs: number = 1500,
+  maxUs: number = 2500
 ): number {
   const clampedAngle = Math.max(minDeg, Math.min(maxDeg, angleDeg));
   const us = Math.round(minUs + ((clampedAngle - minDeg) * (maxUs - minUs)) / (maxDeg - minDeg));
