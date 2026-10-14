@@ -111,13 +111,13 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <Cpu className="w-3.5 h-3.5" />
             Servo Commands (M1=Shoulder, M2=Base, M3=Elbow)
           </span>
-          {angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 1500 && angles3DOF.m3_us === 1500 ? (
-            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px]">
-              Zero Arm: 1500µs (1.5ms all motors)
+          {angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 2000 && angles3DOF.m3_us === 1500 ? (
+            <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[10px]">
+              Home Arm: M1=1500 | M2=2000 | M3=1500
             </span>
-          ) : angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 2000 && angles3DOF.m3_us === 1500 ? (
-            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px]">
-              Center Neutral: M2=2000µs (0°)
+          ) : angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 1500 && angles3DOF.m3_us === 1500 ? (
+            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px]">
+              All 1500µs (Base -45°)
             </span>
           ) : (
             <span className="text-[10px] text-slate-400">Range: 1500–2500µs</span>

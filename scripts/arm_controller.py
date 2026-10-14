@@ -67,12 +67,12 @@ def main():
         sys.exit(1)
 
     print("Connected successfully!")
-    print("Zeroing arm (1500us / 1.5ms on all motors)...")
-    send_command(ser, "M1 1500\nM2 1500\nM3 1500\nPOS 1500 1500 1500\nZERO")
+    print("Homing arm (M1: 1500us, M2: 2000us, M3: 1500us)...")
+    send_command(ser, "M1 1500\nM2 2000\nM3 1500\nPOS 1500 2000 1500\nHOME")
 
     print("\n--- Command Options ---")
+    print("  home               -> Home arm: M1: 1500us, M2: 2000us, M3: 1500us")
     print("  zero               -> Set all motors to 1500us (1.5ms Zero all motors)")
-    print("  center             -> Set M2 Base to 2000us (0 deg center, +/-45 deg)")
     print("  pos <m1> <m2> <m3> -> Set individual pulse widths (e.g. pos 1500 2000 1500)")
     print("  m1 <us>            -> Shoulder motor: 1500us (0 deg) to 2500us (+90 deg)")
     print("  m2 <us>            -> Base motor: 2000us (0 deg), 1500us (-45 deg), 2500us (+45 deg)")

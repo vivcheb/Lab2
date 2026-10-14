@@ -117,7 +117,14 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       if (v3 >= 1000 && v3 <= 3000) setTestM3(Math.max(1500, Math.min(2500, v3)));
     }
 
-    // Check for ZERO or HOME
+    // Check for HOME
+    if (text.includes('HOME')) {
+      setTestM1(1500);
+      setTestM2(2000);
+      setTestM3(1500);
+    }
+
+    // Check for ZERO
     if (text.includes('ZERO') || text.includes('1500MS') || text.includes('1500US')) {
       setTestM1(1500);
       setTestM2(1500);
@@ -171,9 +178,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       await serialManager.connect(baudRate);
       addLog(`Connected to real robot arm via Web Serial @ ${baudRate} baud`, 'success');
       appendTerminal('sys', `Connected to port @ ${baudRate} baud`);
-      // Immediately zero motors to 1500us (1.5ms for all motors)
-      await serialManager.zeroArm(1500);
-      appendTerminal('tx', 'M1 1500 | M2 1500 | M3 1500 | ZERO (1500µs all motors)');
+      // Immediately home motors to M1:1500, M2:2000, M3:1500
+      await serialManager.homeArm(1500, 2000, 1500);
+      appendTerminal('tx', 'M1 1500 | M2 2000 | M3 1500 | HOME');
     } catch (err: any) {
       if (err.name !== 'NotFoundError') {
         setStatusMsg(`Connection error: ${err.message}`);
@@ -190,17 +197,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
     addLog('Disconnected from robot arm serial port', 'warn');
   };
 
-  // Zero Arm (1500us / 1.5ms for all motors)
-  const handleZeroArm = async () => {
+  // Home Arm (M1 1500, M2 2000, M3 1500)
+  const handleHomeArm = async () => {
     setTestM1(1500);
-    setTestM2(1500);
+    setTestM2(2000);
     setTestM3(1500);
-    appendTerminal('tx', 'M1 1500 | M2 1500 | M3 1500 | ZERO (1500µs / 1.5ms all motors)');
+    appendTerminal('tx', 'M1 1500 | M2 2000 | M3 1500 | HOME');
     if (isConnected) {
-      await serialManager.zeroArm(1500);
-      addLog('Physical Arm: Sent Zero commands (1500µs for all motors)', 'info');
+      await serialManager.homeArm(1500, 2000, 1500);
+      addLog('Physical Arm: Sent Home commands (M1 1500 | M2 2000 | M3 1500)', 'info');
     } else {
-      addLog('Set sliders to 1500µs (1.5ms Zero all motors)', 'info');
+      addLog('Homed sliders to M1 1500µs, M2 2000µs, M3 1500µs', 'info');
     }
   };
 
@@ -470,17 +477,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </p>
                 </div>
 
-                {/* Quick Actions (Zero 1500us all motors, E-Stop) */}
+                {/* Quick Actions (Home Arm: M1 1500, M2 2000, M3 1500, E-Stop) */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={handleZeroArm}
-                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer"
-                    title="Send Zero position 1500µs (1.5ms) to all motors"
+                    onClick={handleHomeArm}
+                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer"
+                    title="Home Arm: M1 1500µs, M2 2000µs, M3 1500µs"
                   >
-                    <RotateCw className="w-4 h-4 text-amber-400" />
+                    <RotateCcw className="w-4 h-4 text-sky-400" />
                     <div className="flex flex-col items-start">
-                      <span>Zero Arm</span>
-                      <span className="text-[9px] text-amber-400/80 font-mono">1500µs (1.5ms all motors)</span>
+                      <span>Home Arm</span>
+                      <span className="text-[9px] text-sky-400/80 font-mono">M1:1500 M2:2000 M3:1500</span>
                     </div>
                   </button>
 

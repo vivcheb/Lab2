@@ -189,11 +189,11 @@ export default function App() {
 
       if (isHomeMove) {
         addLog(
-          `> Serial TX: M1 1500 | M2 1500 | M3 1500 (Zero posture: 1.5ms all motors)`,
+          `> Serial TX: M1 1500 | M2 2000 | M3 1500 (Home posture: M1 1500 | M2 2000 | M3 1500)`,
           'kinematics'
         );
         if (serialManager.getIsConnected() && isMirrorEnabled) {
-          serialManager.zeroArm(1500);
+          serialManager.homeArm(1500, 2000, 1500);
         }
       } else {
         addLog(
@@ -484,18 +484,16 @@ export default function App() {
     [isAnimating, armParams.scale, paperPos, addLog, runCycleForLetter]
   );
 
-  // Manual Zero Arm - Zero is 1500us (1.5ms) for all motors
-  const handleZeroArm = () => {
+  // Manual Home Arm - M1: 1500us, M2: 2000us, M3: 1500us
+  const handleHomeArm = () => {
     if (isAnimating) return;
-    addLog('Zeroing RASTICrane: Setting Zero position (1500µs / 1.5ms all motors)...', 'info');
+    addLog('Homing RASTICrane: Setting Home position (M1 1500 | M2 2000 | M3 1500)...', 'info');
     if (serialManager.getIsConnected()) {
-      serialManager.zeroArm(1500);
+      serialManager.homeArm(1500, 2000, 1500);
     }
-    // Zero position: base = -45 deg (1500us), shoulder = 0 deg (1500us), elbow = 0 deg (1500us)
-    const phiRad = (-45 * Math.PI) / 180;
-    const xMm = (armParams.L2 + armParams.L3) * Math.sin(phiRad);
-    const yMm = (armParams.L2 + armParams.L3) * Math.cos(phiRad);
-    moveToPosition3D(xMm, yMm, armParams.L1, 'RETURN_HOME');
+    // Neutral forward posture: base yaw = 0 deg (M2=2000us), shoulder = 0 deg (M1=1500us), elbow = 0 deg (M3=1500us)
+    // x = 0, y = 240mm (L2 + L3), z = 100mm (L1)
+    moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME');
   };
 
   // Manual Shoulder Rotation Jogging (θ₁ / ssh / M1)
@@ -825,7 +823,7 @@ export default function App() {
               }
             }}
             onRunCycle={() => runCycleForLetter(selectedLetter)}
-            onZeroArm={handleZeroArm}
+            onHomeArm={handleHomeArm}
             onResetPositions={handleResetPositions}
             onClearPaper={handleClearPaper}
             isAnimating={isAnimating}

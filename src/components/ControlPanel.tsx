@@ -14,7 +14,7 @@ interface ControlPanelProps {
   selectedLetter: string;
   onSelectLetter: (letter: string) => void;
   onRunCycle: () => void;
-  onZeroArm: () => void;
+  onHomeArm: () => void;
   onResetPositions: () => void;
   onClearPaper: () => void;
   isAnimating: boolean;
@@ -45,7 +45,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   selectedLetter,
   onSelectLetter,
   onRunCycle,
-  onZeroArm,
+  onHomeArm,
   onResetPositions,
   onClearPaper,
   isAnimating,
@@ -140,17 +140,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
             </div>
 
-            {/* Zero Arm & Actions */}
+            {/* Home Arm & Actions */}
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
               <button
                 type="button"
                 disabled={isAnimating}
-                onClick={onZeroArm}
-                className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-amber-300 font-medium rounded border border-amber-500/30 transition text-[11px]"
-                title="Zero Arm at 1500µs (1.5ms) for all motors"
+                onClick={onHomeArm}
+                className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-sky-300 font-medium rounded border border-sky-500/30 transition text-[11px]"
+                title="Home Arm: M1 1500µs, M2 2000µs, M3 1500µs"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                <span>Zero Arm (1500µs)</span>
+                <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
+                <span>Home Arm</span>
               </button>
 
               <button
@@ -338,16 +338,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 </button>
               </div>
 
-              {/* Zero Arm Button in Manual Jog */}
+              {/* Home Arm Button in Manual Jog */}
               <div className="pt-1 border-t border-slate-900">
                 <button
                   type="button"
                   disabled={isAnimating}
-                  onClick={onZeroArm}
-                  className="w-full flex items-center justify-center gap-1.5 py-1 px-2 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono transition cursor-pointer"
+                  onClick={onHomeArm}
+                  className="w-full flex items-center justify-center gap-1.5 py-1 px-2 bg-slate-900 hover:bg-slate-800 text-sky-300 border border-sky-500/30 rounded text-[10px] font-mono transition cursor-pointer"
+                  title="Home Arm: M1 1500µs, M2 2000µs, M3 1500µs"
                 >
-                  <RotateCcw className="w-3 h-3 text-amber-400" />
-                  <span>Zero Arm (1500µs all motors)</span>
+                  <RotateCcw className="w-3 h-3 text-sky-400" />
+                  <span>Home Arm (M1:1500 M2:2000 M3:1500)</span>
                 </button>
               </div>
             </div>

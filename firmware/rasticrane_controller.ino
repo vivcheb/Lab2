@@ -91,11 +91,11 @@ void applyPulses() {
 }
 
 void setHome() {
-  currentM1 = HOME_US;
-  currentM2 = HOME_US;
-  currentM3 = HOME_US;
+  currentM1 = 1500;
+  currentM2 = 2000;
+  currentM3 = 1500;
   applyPulses();
-  Serial.println("OK: Homed all motors to 2500us (+90 deg)");
+  Serial.println("OK: Homed motors (M1 1500, M2 2000, M3 1500)");
 }
 
 void setZero() {
@@ -112,14 +112,14 @@ void setup() {
 
   inputString.reserve(64);
 
-  // Initialize and go to zero position (1.5ms for all motors)
+  // Initialize and go to home position (M1: 1500us, M2: 2000us, M3: 1500us)
   attachAllServos();
-  setZero();
+  setHome();
 
   Serial.println("=================================================");
   Serial.println("RASTICrane ME416 Robot Arm Controller Ready");
-  Serial.println("Baud: 115200 | Zero: 1500us (1.5ms) all motors");
-  Serial.println("Commands: M1 <us>, M2 <us>, M3 <us>, POS <m1> <m2> <m3>, ZERO, STOP");
+  Serial.println("Baud: 115200 | Home: M1 1500us | M2 2000us | M3 1500us");
+  Serial.println("Commands: M1 <us>, M2 <us>, M3 <us>, POS <m1> <m2> <m3>, HOME, ZERO, STOP");
   Serial.println("=================================================");
 }
 
