@@ -39,6 +39,7 @@ interface ControlPanelProps {
   onJogShoulder?: (shoulderDeg: number) => void;
   onOpenHardware?: () => void;
   isSerialConnected?: boolean;
+  theme?: 'dark' | 'light';
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -70,9 +71,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onJogShoulder,
   onOpenHardware,
   isSerialConnected = false,
+  theme = 'dark',
 }) => {
   const [wordInput, setWordInput] = useState('ROBOT');
   const [activeTab, setActiveTab] = useState<'word' | 'manual'>('word');
+  const isDark = theme !== 'light';
 
   const handleWordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,13 +86,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   return (
     <div className="flex flex-col gap-3 h-full">
       {/* 1. Mode Tabs (Word Sequencer & Manual Jog) */}
-      <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
+      <div className={`flex p-1 rounded-lg border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
         <button
           onClick={() => setActiveTab('word')}
-          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'word'
-              ? 'bg-slate-800 text-purple-400 font-semibold shadow-xs'
-              : 'text-slate-400 hover:text-slate-200'
+              ? isDark ? 'bg-slate-800 text-purple-400 font-semibold shadow-xs' : 'bg-white text-purple-700 font-semibold shadow-xs'
+              : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
@@ -97,10 +100,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('manual')}
-          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'manual'
-              ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs'
-              : 'text-slate-400 hover:text-slate-200'
+              ? isDark ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs' : 'bg-white text-emerald-700 font-semibold shadow-xs'
+              : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
           <span>Manual Jog</span>
@@ -108,16 +111,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       {/* 2. Execution Panel according to Active Tab */}
-      <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-xs flex flex-col gap-2.5">
+      <div className={`p-3 rounded-lg border text-xs flex flex-col gap-2.5 ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
         {activeTab === 'word' && (
           <form onSubmit={handleWordSubmit} className="flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-300">Word Sequence Controller:</span>
-              <span className="text-[11px] text-purple-400 font-mono">4-Step Cycle / Letter</span>
+              <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>Word Sequence Controller:</span>
+              <span className="text-[11px] text-purple-500 font-mono">4-Step Cycle / Letter</span>
             </div>
 
             <div>
-              <label className="text-[11px] text-slate-400 block mb-1">
+              <label className={`text-[11px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 Enter Word or Acronym to Stamp (A–Z):
               </label>
               <div className="flex gap-2">
@@ -127,12 +130,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   onChange={(e) => setWordInput(e.target.value.toUpperCase())}
                   placeholder="e.g. ROBOT, ME416, STANFORD"
                   disabled={isAnimating}
-                  className="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded text-slate-100 font-mono text-xs focus:outline-hidden focus:border-purple-400 uppercase tracking-wider"
+                  className={`flex-1 px-2.5 py-1.5 border rounded font-mono text-xs focus:outline-hidden focus:border-purple-400 uppercase tracking-wider ${
+                    isDark ? 'bg-slate-950 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
                 />
                 <button
                   type="submit"
                   disabled={isAnimating || !wordInput.trim()}
-                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium rounded border border-purple-400/40 flex items-center gap-1.5 transition shadow-sm"
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium rounded border border-purple-400/40 flex items-center gap-1.5 transition shadow-sm cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>{isAnimating ? 'Running...' : 'Execute Sequence'}</span>
@@ -141,12 +146,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             </div>
 
             {/* Home Arm & Actions */}
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+            <div className={`grid grid-cols-2 gap-2 pt-1 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <button
                 type="button"
                 disabled={isAnimating}
                 onClick={onHomeArm}
-                className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-sky-300 font-medium rounded border border-sky-500/30 transition text-[11px]"
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-3 font-medium rounded border transition text-[11px] cursor-pointer ${
+                  isDark
+                    ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border-sky-500/30'
+                    : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-300'
+                }`}
                 title="Home Arm: M1 1500µs, M2 2000µs, M3 1500µs"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-sky-400" />

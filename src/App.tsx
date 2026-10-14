@@ -38,6 +38,7 @@ import { ControlPanel } from './components/ControlPanel';
 import { VisionInspector } from './components/VisionInspector';
 import { CodeInspector } from './components/CodeInspector';
 import { HardwareInspector } from './components/HardwareInspector';
+import { ArmSideProfileCanvas } from './components/ArmSideProfileCanvas';
 import { serialManager } from './utils/serial';
 import {
   Layers,
@@ -45,9 +46,29 @@ import {
   Code2,
   BookOpen,
   Usb,
+  Sun,
+  Moon,
+  MoveVertical,
 } from 'lucide-react';
 
 export default function App() {
+  // Theme state: 'dark' | 'light'
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('light', theme === 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Arm Parameters (matching RASTICrane 3-DOF Robot: L1=100mm, L2=120mm, L3=120mm)
   const [armParams, setArmParams] = useState<ArmParameters>({
     L1: MATLAB_L1,
@@ -79,6 +100,7 @@ export default function App() {
   const [showAprilTags, setShowAprilTags] = useState(true);
   const [showReachEnvelope, setShowReachEnvelope] = useState(true);
   const [showTrajectoryTrail, setShowTrajectoryTrail] = useState(true);
+  const [isSideProfileMinimized, setIsSideProfileMinimized] = useState(false);
 
   // Active Execution States
   const [selectedLetter, setSelectedLetter] = useState<string>('A');
@@ -91,7 +113,7 @@ export default function App() {
   const [isInkContact, setIsInkContact] = useState(false);
   const [stampedMarks, setStampedMarks] = useState<StampedMark[]>([]);
 
-  // Navigation / View Modes
+  // Navigation / View Modes (workspace default with constant Top-Left Side Profile screen)
   const [activeTab, setActiveTab] = useState<'workspace' | 'vision' | 'hardware' | 'code' | 'docs'>('workspace');
   const [isSerialConnected, setIsSerialConnected] = useState(false);
   const [isMirrorEnabled, setIsMirrorEnabled] = useState(true);
@@ -496,6 +518,43 @@ export default function App() {
     moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME');
   };
 
+  // Watch arm move towards stamp holder slot for Side Profile visual inspection
+  const handleWatchApproachSlot = useCallback(() => {
+    if (isAnimating) return;
+    const slot = slotData.find((s) => s.letter === selectedLetter) || slotData[0];
+    if (!slot) return;
+    const slotRobX = slot.worldX / armParams.scale;
+    const slotRobY = -slot.worldY / armParams.scale;
+
+    setActiveTargetLetter(selectedLetter);
+    addLog(`[Side Profile] Arm approaching Stamp Holder slot [${selectedLetter}]...`, 'info');
+
+    // Step 1: Hover approach at Z = 50mm above the slot
+    moveToPosition3D(slotRobX, slotRobY, 50, 'APPROACH_SLOT', () => {
+      addLog(`[Side Profile] Arrived at hover clearance (Z = 50mm) above slot [${selectedLetter}]. Lowering onto steel disc...`, 'info');
+      // Step 2: Lower vertically onto steel disc of stamp at Z = 0mm
+      moveToPosition3D(slotRobX, slotRobY, 0, 'PICK_STAMP', () => {
+        setHoldingLetter(selectedLetter);
+        addLog(`[Side Profile] Magnet snapped onto steel disc! Magnet latched.`, 'success');
+        // Step 3: Lift stamp out of rack (Z = 50mm)
+        setTimeout(() => {
+          moveToPosition3D(slotRobX, slotRobY, 50, 'LIFT_STAMP', () => {
+            addLog(`[Side Profile] Lifted stamp [${selectedLetter}] safely out of holder rack.`, 'info');
+            // Step 4: Return to neutral Home posture
+            setTimeout(() => {
+              moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME', () => {
+                setHoldingLetter(null);
+                setCyclePhase('IDLE');
+                setStatusMessage('Ready at Home position (1.5ms all motors)');
+                addLog(`[Side Profile] Complete! Arm returned to Home.`, 'success');
+              });
+            }, 800);
+          });
+        }, 600);
+      });
+    });
+  }, [isAnimating, slotData, selectedLetter, armParams.scale, addLog, moveToPosition3D]);
+
   // Manual Shoulder Rotation Jogging (θ₁ / ssh / M1)
   const handleJogShoulder = (newShoulderDeg: number) => {
     if (isAnimating) return;
@@ -576,27 +635,35 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden select-none">
+    <div className={`flex flex-col h-screen w-screen font-sans overflow-hidden select-none transition-colors duration-150 ${
+      theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+    }`}>
       {/* 1. Header Bar */}
-      <header className="h-12 border-b border-slate-800 bg-slate-900/90 px-4 flex items-center justify-between shrink-0">
+      <header className={`h-12 border-b px-4 flex items-center justify-between shrink-0 transition-colors ${
+        theme === 'dark' ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-white/95 shadow-xs'
+      }`}>
         <div className="flex items-center gap-3">
           <div className="p-1.5 rounded-md bg-purple-600/20 text-purple-400 border border-purple-500/30">
             <Layers className="w-5 h-5 text-purple-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-sm font-semibold tracking-wide text-slate-100">
+              <h1 className={`text-sm font-semibold tracking-wide ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
                 ME416 — Lab 2: The Stamp Machine
               </h1>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono">
+              <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${
+                theme === 'dark' ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-amber-50 text-amber-800 border border-amber-200'
+              }`}>
                 RASTICrane Pick-and-Place
               </span>
               <button
                 onClick={() => setActiveTab('hardware')}
                 className={`text-[10px] px-2.5 py-0.5 rounded font-mono font-medium flex items-center gap-1.5 transition cursor-pointer ${
                   isSerialConnected
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                    : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                    : theme === 'dark'
+                    ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
+                    : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
                 }`}
                 title="Click to manage USB Serial connection to real robot arm"
               >
@@ -611,94 +678,169 @@ export default function App() {
           </div>
         </div>
 
-        {/* View Mode Switcher */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+        {/* Center: View Mode Switcher */}
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-0.5 p-1 rounded-lg border text-xs ${
+            theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}>
+            <button
+              onClick={() => setActiveTab('workspace')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded font-medium transition cursor-pointer ${
+                activeTab === 'workspace'
+                  ? theme === 'dark' ? 'bg-slate-800 text-sky-400 font-semibold shadow-xs' : 'bg-white text-sky-700 font-semibold shadow-xs'
+                  : theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Top-down workspace with AprilTags, stamp rack, and constant Side Profile screen"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Top-Down Table</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('hardware')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded font-medium transition cursor-pointer ${
+                activeTab === 'hardware'
+                  ? theme === 'dark' ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs' : 'bg-white text-emerald-700 font-semibold shadow-xs'
+                  : theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Usb className="w-3.5 h-3.5" />
+              <span>Real Arm Control</span>
+              {isSerialConnected && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('vision')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded font-medium transition cursor-pointer ${
+                activeTab === 'vision'
+                  ? theme === 'dark' ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs' : 'bg-white text-emerald-700 font-semibold shadow-xs'
+                  : theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Vision & H</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('code')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded font-medium transition cursor-pointer ${
+                activeTab === 'code'
+                  ? theme === 'dark' ? 'bg-slate-800 text-purple-400 font-semibold shadow-xs' : 'bg-white text-purple-700 font-semibold shadow-xs'
+                  : theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              <span>Serial Code</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('docs')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded font-medium transition cursor-pointer ${
+                activeTab === 'docs'
+                  ? theme === 'dark' ? 'bg-slate-800 text-amber-400 font-semibold shadow-xs' : 'bg-white text-amber-700 font-semibold shadow-xs'
+                  : theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Lab 2 Guide</span>
+            </button>
+          </div>
+
+          {/* Right Action: Light / Dark Mode Toggle */}
           <button
-            onClick={() => setActiveTab('workspace')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
-              activeTab === 'workspace'
-                ? 'bg-slate-800 text-sky-400 font-semibold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
+            onClick={toggleTheme}
+            className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 transition cursor-pointer text-xs font-medium shadow-xs ${
+              theme === 'dark'
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'
+                : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
             }`}
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label="Toggle Light and Dark Mode"
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Workspace Layout</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('hardware')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
-              activeTab === 'hardware'
-                ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Usb className="w-3.5 h-3.5" />
-            <span>Real Arm Control</span>
-            {isSerialConnected && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+                <span className="font-mono text-[11px]">Light Mode</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-sky-600 fill-sky-600/20" />
+                <span className="font-mono text-[11px]">Dark Mode</span>
+              </>
             )}
-          </button>
-          <button
-            onClick={() => setActiveTab('vision')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
-              activeTab === 'vision'
-                ? 'bg-slate-800 text-emerald-400 font-semibold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>AprilTags & Homography H</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('code')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
-              activeTab === 'code'
-                ? 'bg-slate-800 text-purple-400 font-semibold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Code2 className="w-3.5 h-3.5" />
-            <span>Controller Script & Serial</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('docs')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition cursor-pointer ${
-              activeTab === 'docs'
-                ? 'bg-slate-800 text-amber-400 font-semibold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Lab 2 Handout Guide</span>
           </button>
         </div>
       </header>
 
       {/* 2. Main Workspace Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Side: 2D Interactive Canvas */}
-        <div className="flex-1 relative flex flex-col bg-slate-950 border-r border-slate-800">
-          <WorkspaceCanvas
-            q1={q1}
-            q2={q2}
-            holdingLetter={holdingLetter}
-            activeTargetLetter={activeTargetLetter}
-            isStampingContact={isStampingContact}
-            isInkContact={isInkContact}
-            isHovering={isHovering}
-            showAprilTags={showAprilTags}
-            showReachEnvelope={showReachEnvelope}
-            showTrajectoryTrail={showTrajectoryTrail}
-            holderPos={holderPos}
-            inkPadPos={inkPadPos}
-            paperPos={paperPos}
-            stampedMarks={stampedMarks}
-            slotData={slotData}
-            armParams={armParams}
-            onUpdateComponentPos={handleUpdateComponentPos}
-            onSelectSlot={handleSelectSlot}
-            onClickWorkspace={handleClickWorkspace}
-          />
+        {/* Left Side: Viewport Stage */}
+        <div className={`flex-1 relative flex flex-col border-r ${
+          theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}>
+          {/* Main Top-Down Table Workspace with Constant Top-Left Side Profile Screen */}
+          <div className="flex-1 relative flex flex-col">
+            <WorkspaceCanvas
+              q1={q1}
+              q2={q2}
+              holdingLetter={holdingLetter}
+              activeTargetLetter={activeTargetLetter}
+              isStampingContact={isStampingContact}
+              isInkContact={isInkContact}
+              isHovering={isHovering}
+              showAprilTags={showAprilTags}
+              showReachEnvelope={showReachEnvelope}
+              showTrajectoryTrail={showTrajectoryTrail}
+              holderPos={holderPos}
+              inkPadPos={inkPadPos}
+              paperPos={paperPos}
+              stampedMarks={stampedMarks}
+              slotData={slotData}
+              armParams={armParams}
+              theme={theme}
+              onUpdateComponentPos={handleUpdateComponentPos}
+              onSelectSlot={handleSelectSlot}
+              onClickWorkspace={handleClickWorkspace}
+            />
+
+            {/* Constant Side Profile Screen in Top-Left Corner */}
+            {!isSideProfileMinimized ? (
+              <div
+                className={`absolute top-3 left-3 z-20 w-[380px] lg:w-[420px] h-[255px] lg:h-[275px] shadow-2xl rounded-lg overflow-hidden border backdrop-blur-md transition-all flex flex-col ${
+                  theme === 'dark'
+                    ? 'border-slate-700/80 bg-slate-950/95 shadow-black/60'
+                    : 'border-slate-300 bg-white/95 shadow-slate-400/30'
+                }`}
+              >
+                <ArmSideProfileCanvas
+                  currentPos3D={currentPos3D}
+                  angles3DOF={currentIK}
+                  armParams={armParams}
+                  activeLetter={activeTargetLetter}
+                  holdingLetter={holdingLetter}
+                  cyclePhase={cyclePhase}
+                  isStampingContact={isStampingContact}
+                  isInkContact={isInkContact}
+                  theme={theme}
+                  holderPos={holderPos}
+                  slotData={slotData}
+                  onApproachSlot={handleWatchApproachSlot}
+                  onToggleMinimize={() => setIsSideProfileMinimized(true)}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsSideProfileMinimized(false)}
+                className={`absolute top-3 left-3 z-20 px-3 py-1.5 rounded-lg border text-xs font-mono font-medium flex items-center gap-1.5 shadow-lg cursor-pointer transition ${
+                  theme === 'dark'
+                    ? 'bg-slate-900/90 border-slate-700 text-sky-400 hover:bg-slate-800'
+                    : 'bg-white border-slate-300 text-sky-700 hover:bg-slate-50'
+                }`}
+                title="Expand Side Elevation Profile"
+              >
+                <MoveVertical className="w-3.5 h-3.5 text-sky-500" />
+                <span>Side Profile Screen</span>
+              </button>
+            )}
+          </div>
 
           {/* Modal Overlay / Secondary Views */}
           {activeTab === 'hardware' && (
@@ -754,29 +896,31 @@ export default function App() {
           )}
 
           {activeTab === 'docs' && (
-            <div className="absolute inset-x-4 bottom-4 z-30 shadow-2xl max-w-2xl mx-auto bg-slate-900 border border-slate-700 p-4 rounded-lg text-xs leading-relaxed space-y-3 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span className="font-semibold text-slate-200 text-sm flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-amber-400" />
+            <div className={`absolute inset-x-4 bottom-4 z-30 shadow-2xl max-w-2xl mx-auto border p-4 rounded-lg text-xs leading-relaxed space-y-3 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-200 ${
+              theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-300' : 'bg-white border-slate-300 text-slate-700'
+            }`}>
+              <div className={`flex items-center justify-between border-b pb-2 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                <span className={`font-semibold text-sm flex items-center gap-1.5 ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>
+                  <BookOpen className="w-4 h-4 text-amber-500" />
                   ME416 — Lab 2: The Stamp Machine (Handout Notes)
                 </span>
                 <button
                   onClick={() => setActiveTab('workspace')}
-                  className="text-slate-400 hover:text-slate-200 font-mono text-[11px]"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-mono text-[11px] cursor-pointer"
                 >
                   ✕ Close
                 </button>
               </div>
-              <div className="text-slate-300 space-y-2 font-sans">
+              <div className="space-y-2 font-sans">
                 <div>
-                  <h4 className="font-semibold text-purple-300">1. Coordinate Notation:</h4>
+                  <h4 className="font-semibold text-purple-500">1. Coordinate Notation:</h4>
                   <p className="text-[11px]">
                     World frame [U, V, W]ᵀ where table is W = 0. Base frame origin is the arm base axis. Azimuth ϕ = atan2(V, U), radial distance ρ = √(U² + V²). Base yaw θ0, shoulder θ1, elbow θ2. Servo pulse commands s0, ssh, sel.
                   </p>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-purple-300">2. Picking Up and Putting Down (Magnetic Wipe Release):</h4>
+                  <h4 className="font-semibold text-purple-500">2. Picking Up and Putting Down (Magnetic Wipe Release):</h4>
                   <p className="text-[11px]">
                     There is no gripper. A magnet on the Lego plate connects to the stamp by touching its steel disc from above. Putting the stamp down is a wiping motion:
                     1. Lower onto disc &rarr; 2. Lift straight up &rarr; 3. Put down in holder &rarr; 4. Wipe outward along ρ at constant ϕ so the holder lip holds the stamp back as the magnet slides off.
@@ -784,14 +928,14 @@ export default function App() {
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-purple-300">3. Radial Letter Orientation (Problem 1 & Page 5):</h4>
+                  <h4 className="font-semibold text-purple-500">3. Radial Letter Orientation (Problem 1 & Page 5):</h4>
                   <p className="text-[11px]">
                     A stamp picked up at azimuth ϕ_pick and pressed down at azimuth ϕ_press is rotated by Δϕ = (ϕ_press - ϕ_pick) about the vertical axis. Because this 3-DOF arm has no wrist yaw joint, each letter stamped on paper is oriented radially: its rotation is the yaw at which it was pressed! Names are therefore written along a radial arc.
                   </p>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-purple-300">4. Vision & Homography Pipeline:</h4>
+                  <h4 className="font-semibold text-purple-500">4. Vision & Homography Pipeline:</h4>
                   <p className="text-[11px]">
                     camera frame &rarr; base tag &rarr; table homography H &rarr; stamp, ink, paper tags &rarr; [U, V]ᵀ &rarr; rasticraneIk &rarr; θ &rarr; servo PWMs s0, ssh, sel.
                   </p>
@@ -802,7 +946,9 @@ export default function App() {
         </div>
 
         {/* Right Side Control & Telemetry Sidebar */}
-        <aside className="w-96 bg-slate-900/95 flex flex-col gap-3 p-3 overflow-y-auto border-l border-slate-800 shrink-0">
+        <aside className={`w-96 flex flex-col gap-3 p-3 overflow-y-auto border-l shrink-0 transition-colors ${
+          theme === 'dark' ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'
+        }`}>
           <TelemetryPanel
             currentPos3D={currentPos3D}
             angles3DOF={currentIK}
@@ -811,6 +957,7 @@ export default function App() {
             activeLetter={activeTargetLetter}
             holdingLetter={holdingLetter}
             isHovering={isHovering}
+            theme={theme}
           />
 
           <ControlPanel
@@ -848,6 +995,7 @@ export default function App() {
             onJogShoulder={handleJogShoulder}
             onOpenHardware={() => setActiveTab('hardware')}
             isSerialConnected={isSerialConnected}
+            theme={theme}
           />
         </aside>
       </div>

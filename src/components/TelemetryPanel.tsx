@@ -11,6 +11,7 @@ interface TelemetryPanelProps {
   activeLetter: string | null;
   holdingLetter: string | null;
   isHovering: boolean;
+  theme?: 'dark' | 'light';
 }
 
 export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
@@ -21,13 +22,16 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
   activeLetter,
   holdingLetter,
   isHovering,
+  theme = 'dark',
 }) => {
+  const isDark = theme !== 'light';
+
   const getStatusColor = () => {
-    if (phase === 'STAMP_PAPER') return 'text-rose-400 border-rose-500/40 bg-rose-950/30';
-    if (phase === 'DIP_INK') return 'text-sky-400 border-sky-500/40 bg-sky-950/30';
-    if (phase === 'WIPE_OUTWARD') return 'text-purple-400 border-purple-500/40 bg-purple-950/30';
-    if (phase !== 'IDLE') return 'text-amber-400 border-amber-500/40 bg-amber-950/30';
-    return 'text-emerald-400 border-emerald-500/40 bg-emerald-950/30';
+    if (phase === 'STAMP_PAPER') return isDark ? 'text-rose-400 border-rose-500/40 bg-rose-950/30' : 'text-rose-700 border-rose-300 bg-rose-50';
+    if (phase === 'DIP_INK') return isDark ? 'text-sky-400 border-sky-500/40 bg-sky-950/30' : 'text-sky-700 border-sky-300 bg-sky-50';
+    if (phase === 'WIPE_OUTWARD') return isDark ? 'text-purple-400 border-purple-500/40 bg-purple-950/30' : 'text-purple-700 border-purple-300 bg-purple-50';
+    if (phase !== 'IDLE') return isDark ? 'text-amber-400 border-amber-500/40 bg-amber-950/30' : 'text-amber-700 border-amber-300 bg-amber-50';
+    return isDark ? 'text-emerald-400 border-emerald-500/40 bg-emerald-950/30' : 'text-emerald-700 border-emerald-300 bg-emerald-50';
   };
 
   const rho = Math.hypot(currentPos3D.x, currentPos3D.y);
@@ -35,10 +39,12 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
   const phiDeg = radToDeg(phiRad);
 
   return (
-    <div className="flex flex-col gap-3 p-3.5 bg-slate-900/90 rounded-lg border border-slate-800 text-xs">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-        <div className="flex items-center gap-2 font-semibold text-slate-200">
-          <Activity className="w-4 h-4 text-sky-400" />
+    <div className={`flex flex-col gap-3 p-3.5 rounded-lg border text-xs ${
+      isDark ? 'bg-slate-900/90 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800 shadow-xs'
+    }`}>
+      <div className={`flex items-center justify-between border-b pb-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+        <div className={`flex items-center gap-2 font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+          <Activity className="w-4 h-4 text-sky-500" />
           <span>RASTICrane Kinematics & Serial Servo Feed</span>
         </div>
         <div
@@ -50,8 +56,8 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
 
       {/* World Frame [U, V, W]ᵀ & Polar Coordinates [rho, phi] (Handout Page 1) */}
       <div className="grid grid-cols-2 gap-2 font-mono">
-        <div className="p-2.5 bg-slate-950 rounded border border-slate-800/80">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide flex items-center justify-between">
+        <div className={`p-2.5 rounded border ${isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wide flex items-center justify-between">
             <span>World Frame [U, V, W]ᵀ</span>
             <span className="flex items-center gap-1 text-[10px] text-sky-400">
               <span className={`w-1.5 h-1.5 rounded-full ${isHovering ? 'bg-amber-400' : 'bg-emerald-400'}`} />
@@ -72,32 +78,32 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
           </div>
         </div>
 
-        <div className="p-2.5 bg-slate-950 rounded border border-slate-800/80 flex flex-col justify-between">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide flex items-center justify-between">
+        <div className={`p-2.5 rounded border flex flex-col justify-between ${isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wide flex items-center justify-between">
             <span>Magnetic Lego Head</span>
-            <span className="text-purple-400 font-semibold text-[10px]">COM3 @ 115200</span>
+            <span className="text-purple-500 font-semibold text-[10px]">COM3 @ 115200</span>
           </div>
           <div className="mt-1 space-y-1">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">Target Stamp:</span>
-              <span className="font-semibold text-yellow-400 font-mono">
+              <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Target Stamp:</span>
+              <span className={`font-semibold font-mono ${isDark ? 'text-yellow-400' : 'text-amber-600'}`}>
                 {activeLetter ? `'${activeLetter}'` : 'None'}
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">Magnet Status:</span>
+              <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Magnet Status:</span>
               <span
                 className={`font-semibold font-mono ${
-                  holdingLetter ? 'text-emerald-400' : 'text-slate-500'
+                  holdingLetter ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-slate-500' : 'text-slate-400')
                 }`}
               >
                 {holdingLetter ? `Latched ('${holdingLetter}')` : 'Detached'}
               </span>
             </div>
           </div>
-          <div className="pt-1 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center gap-1">
-            <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-            <span className="text-emerald-400 font-mono">
+          <div className={`pt-1 border-t text-[10px] flex items-center gap-1 ${isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-200 text-slate-600'}`}>
+            <Radio className={`w-3 h-3 animate-pulse ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+            <span className={`font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
               ssh (M1): {angles3DOF.m1_us} | s0 (M2): {angles3DOF.m2_us} | sel (M3): {angles3DOF.m3_us}
             </span>
           </div>
@@ -105,9 +111,9 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
       </div>
 
       {/* 3-DOF Joint Angles & Microsecond Servo PWM Pulse Widths (M1=Shoulder, M2=Base, M3=Elbow) */}
-      <div className="p-2.5 bg-slate-950 rounded border border-slate-800/80 space-y-2 font-mono">
-        <div className="flex items-center justify-between text-slate-300 font-semibold text-[11px] pb-1 border-b border-slate-800">
-          <span className="flex items-center gap-1.5 text-purple-400">
+      <div className={`p-2.5 rounded border space-y-2 font-mono ${isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200'}`}>
+        <div className={`flex items-center justify-between font-semibold text-[11px] pb-1 border-b ${isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-700'}`}>
+          <span className="flex items-center gap-1.5 text-purple-500">
             <Cpu className="w-3.5 h-3.5" />
             Servo Commands (M1=Shoulder, M2=Base, M3=Elbow)
           </span>

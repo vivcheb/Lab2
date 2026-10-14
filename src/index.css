@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+:root {
+  --app-bg: #030712;
+  --panel-bg: #0f172a;
+  --panel-border: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"], .light {
+  --app-bg: #f8fafc;
+  --panel-bg: #ffffff;
+  --panel-border: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--text-main);
+}

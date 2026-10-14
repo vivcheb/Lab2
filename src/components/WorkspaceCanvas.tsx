@@ -42,6 +42,7 @@ interface WorkspaceCanvasProps {
   stampedMarks: StampedMark[];
   slotData: SlotData[];
   armParams: ArmParameters;
+  theme?: 'dark' | 'light';
   onUpdateComponentPos: (type: 'holder' | 'ink' | 'paper', pos: Position2D) => void;
   onSelectSlot: (letter: string, worldPos: Position2D) => void;
   onClickWorkspace: (x: number, y: number) => void;
@@ -64,6 +65,7 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
   stampedMarks,
   slotData,
   armParams,
+  theme = 'dark',
   onUpdateComponentPos,
   onSelectSlot,
   onClickWorkspace,
@@ -220,11 +222,12 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
     ctx.clearRect(0, 0, width, height);
 
     // 1. Engineering Workbench Background Grid
-    ctx.fillStyle = '#0b0f19';
+    const isDark = theme !== 'light';
+    ctx.fillStyle = isDark ? '#0b0f19' : '#f8fafc';
     ctx.fillRect(0, 0, width, height);
 
     // Minor grid
-    ctx.strokeStyle = '#151e33';
+    ctx.strokeStyle = isDark ? '#151e33' : '#e2e8f0';
     ctx.lineWidth = 1;
     for (let x = 0; x < width; x += 20) {
       ctx.beginPath();
@@ -240,7 +243,7 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
     }
 
     // Major grid
-    ctx.strokeStyle = '#1e293b';
+    ctx.strokeStyle = isDark ? '#1e293b' : '#cbd5e1';
     ctx.lineWidth = 1.2;
     for (let x = 0; x < width; x += 100) {
       ctx.beginPath();
