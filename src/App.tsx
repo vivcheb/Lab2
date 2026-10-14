@@ -211,11 +211,11 @@ export default function App() {
 
       if (isHomeMove) {
         addLog(
-          `> Serial TX: M1 1500 | M2 2000 | M3 1500 (Home posture: M1 1500 | M2 2000 | M3 1500)`,
+          `> Serial TX: M1 1500 | M2 2100 | M3 1500 (Home posture: M1 1500 | M2 2100 | M3 1500)`,
           'kinematics'
         );
         if (serialManager.getIsConnected() && isMirrorEnabled) {
-          serialManager.homeArm(1500, 2000, 1500);
+          serialManager.homeArm(1500, 2100, 1500);
         }
       } else {
         addLog(
@@ -506,14 +506,14 @@ export default function App() {
     [isAnimating, armParams.scale, paperPos, addLog, runCycleForLetter]
   );
 
-  // Manual Home Arm - M1: 1500us, M2: 2000us, M3: 1500us
+  // Manual Home Arm - M1: 1500us, M2: 2100us, M3: 1500us
   const handleHomeArm = () => {
     if (isAnimating) return;
-    addLog('Homing RASTICrane: Setting Home position (M1 1500 | M2 2000 | M3 1500)...', 'info');
+    addLog('Homing RASTICrane: Setting Home position (M1 1500 | M2 2100 | M3 1500)...', 'info');
     if (serialManager.getIsConnected()) {
-      serialManager.homeArm(1500, 2000, 1500);
+      serialManager.homeArm(1500, 2100, 1500);
     }
-    // Neutral forward posture: base yaw = 0 deg (M2=2000us), shoulder = 0 deg (M1=1500us), elbow = 0 deg (M3=1500us)
+    // Neutral forward posture: base yaw = 0 deg (M2=2100us, min=1600us, max=2600us), shoulder = 0 deg (M1=1500us), elbow = 0 deg (M3=1500us)
     // x = 0, y = 240mm (L2 + L3), z = 100mm (L1)
     moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME');
   };

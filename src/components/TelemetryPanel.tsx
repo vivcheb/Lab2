@@ -117,16 +117,20 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <Cpu className="w-3.5 h-3.5" />
             Servo Commands (M1=Shoulder, M2=Base, M3=Elbow)
           </span>
-          {angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 2000 && angles3DOF.m3_us === 1500 ? (
+          {angles3DOF.m1_us === 1500 && (angles3DOF.m2_us === 2100 || angles3DOF.m2_us === 2000) && angles3DOF.m3_us === 1500 ? (
             <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[10px]">
-              Home Arm: M1=1500 | M2=2000 | M3=1500
+              Home Arm: M1=1500 | M2={angles3DOF.m2_us} | M3=1500
             </span>
-          ) : angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 1500 && angles3DOF.m3_us === 1500 ? (
+          ) : angles3DOF.m2_us <= 1600 ? (
             <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px]">
-              All 1500µs (Base -45°)
+              Base Min (1600µs / -45°)
+            </span>
+          ) : angles3DOF.m2_us >= 2600 ? (
+            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px]">
+              Base Max (2600µs / +45°)
             </span>
           ) : (
-            <span className="text-[10px] text-slate-400">Range: 1500–2500µs</span>
+            <span className="text-[10px] text-slate-400">Base Yaw: 1600–2600µs</span>
           )}
         </div>
 
@@ -172,7 +176,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <div
               className="bg-sky-400 h-full transition-all duration-75"
               style={{
-                width: `${Math.min(100, Math.max(0, ((angles3DOF.baseDeg + 45) / 90) * 100))}%`,
+                width: `${Math.min(100, Math.max(0, ((angles3DOF.m2_us - 1600) / 1000) * 100))}%`,
               }}
             />
           </div>

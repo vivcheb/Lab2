@@ -156,7 +156,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border-sky-500/30'
                     : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-300'
                 }`}
-                title="Home Arm: M1 1500µs, M2 2000µs, M3 1500µs"
+                title="Home Arm: M1 1500µs, M2 2100µs, M3 1500µs"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
                 <span>Home Arm</span>
@@ -204,7 +204,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <span className="text-[10px] text-slate-400 font-mono">3-DOF Polar</span>
               </div>
 
-              {/* 1. Rotate Base (ϕ / θ₀) - Center 0° is 2000µs (+/-45°) */}
+              {/* 1. Rotate Base (ϕ / θ₀) - Min 1600µs, Center 0° is 2100µs, Max 2600µs (+/-45°) */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px]">
                   <span className="text-slate-300 font-medium flex items-center gap-1">
@@ -214,7 +214,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <span className="font-mono text-amber-300 font-semibold">
                     {manualThetaDeg.toFixed(1)}° &bull;{' '}
                     <span className="text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded text-[10px]">
-                      {Math.round(Math.max(1500, Math.min(2500, 2000 + (manualThetaDeg / 45) * 500)))} µs
+                      {Math.round(Math.max(1600, Math.min(2600, 2100 + (manualThetaDeg / 45) * 500)))} µs
                     </span>
                   </span>
                 </div>
@@ -228,9 +228,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                  <span>-45° (1500µs Left)</span>
-                  <span>0° (2000µs Center)</span>
-                  <span>+45° (2500µs Right)</span>
+                  <span>-45° (1600µs Min)</span>
+                  <span>0° (2100µs Center)</span>
+                  <span>+45° (2600µs Max)</span>
                 </div>
               </div>
 
@@ -354,10 +354,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   disabled={isAnimating}
                   onClick={onHomeArm}
                   className="w-full flex items-center justify-center gap-1.5 py-1 px-2 bg-slate-900 hover:bg-slate-800 text-sky-300 border border-sky-500/30 rounded text-[10px] font-mono transition cursor-pointer"
-                  title="Home Arm: M1 1500µs, M2 2000µs, M3 1500µs"
+                  title="Home Arm: M1 1500µs, M2 2100µs, M3 1500µs"
                 >
                   <RotateCcw className="w-3 h-3 text-sky-400" />
-                  <span>Home Arm (M1:1500 M2:2000 M3:1500)</span>
+                  <span>Home Arm (M1:1500 M2:2100 M3:1500)</span>
                 </button>
               </div>
             </div>

@@ -285,9 +285,9 @@ end`;
 //            ESP32-S3 SERIAL DATA MONITOR (COM3 @ 115200 BAUD)
 // =========================================================================
 // Plain-text ASCII string format:
-//   M1 <PWM_us>  (Base Yaw Servo, range [1300, 1700] us)
-//   M2 <PWM_us>  (Shoulder Servo, range [1300, 1700] us)
-//   M3 <PWM_us>  (Elbow Servo,    range [1300, 1700] us)
+//   M1 <PWM_us>  (Shoulder Servo, range [1500, 2500] us)
+//   M2 <PWM_us>  (Base Yaw Servo, range [1600, 2600] us)
+//   M3 <PWM_us>  (Elbow Servo,    range [1500, 2500] us)
 
 [00:00.00] CONNECTED: COM3 @ 115200 baud (ESP32-S3 Terminator: LF)
 [00:00.02] INITIALIZING: Camera stream (640x480, tag36h11)

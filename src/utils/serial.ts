@@ -131,11 +131,11 @@ class WebSerialManager {
     return true;
   }
 
-  public async homeArm(m1_us: number = 1500, m2_us: number = 2000, m3_us: number = 1500): Promise<boolean> {
+  public async homeArm(m1_us: number = 1500, m2_us: number = 2100, m3_us: number = 1500): Promise<boolean> {
     const s1 = Math.round(m1_us);
     const s2 = Math.round(m2_us);
     const s3 = Math.round(m3_us);
-    // Send individual M1, M2, M3, POS, and HOME (M1:1500, M2:2000, M3:1500)
+    // Send individual M1, M2, M3, POS, and HOME (M1:1500, M2:2100, M3:1500)
     await this.sendCommand(`M1 ${s1}`);
     await this.sendCommand(`M2 ${s2}`);
     await this.sendCommand(`M3 ${s3}`);

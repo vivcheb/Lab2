@@ -67,9 +67,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [hwWordInput, setHwWordInput] = useState('ROBOT');
 
-  // Manual test pulse values (visual slider range: 1500us to 2500us; M1/M3 zero: 1500us, M2 Base zero: 2000us)
+  // Manual test pulse values (M1/M3 range: 1500us to 2500us; M2 Base range: 1600us to 2600us, Center: 2100us)
   const [testM1, setTestM1] = useState(1500);
-  const [testM2, setTestM2] = useState(2000);
+  const [testM2, setTestM2] = useState(2100);
   const [testM3, setTestM3] = useState(1500);
 
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
@@ -93,7 +93,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
     if (m2Match) {
       const val = parseInt(m2Match[1], 10);
       if (val >= 1000 && val <= 3000) {
-        setTestM2(Math.max(1500, Math.min(2500, val)));
+        setTestM2(Math.max(1600, Math.min(2600, val)));
       }
     }
 
@@ -113,21 +113,21 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       const v2 = parseInt(posMatch[2], 10);
       const v3 = parseInt(posMatch[3], 10);
       if (v1 >= 1000 && v1 <= 3000) setTestM1(Math.max(1500, Math.min(2500, v1)));
-      if (v2 >= 1000 && v2 <= 3000) setTestM2(Math.max(1500, Math.min(2500, v2)));
+      if (v2 >= 1000 && v2 <= 3000) setTestM2(Math.max(1600, Math.min(2600, v2)));
       if (v3 >= 1000 && v3 <= 3000) setTestM3(Math.max(1500, Math.min(2500, v3)));
     }
 
     // Check for HOME
     if (text.includes('HOME')) {
       setTestM1(1500);
-      setTestM2(2000);
+      setTestM2(2100);
       setTestM3(1500);
     }
 
     // Check for ZERO
     if (text.includes('ZERO') || text.includes('1500MS') || text.includes('1500US')) {
       setTestM1(1500);
-      setTestM2(1500);
+      setTestM2(2100);
       setTestM3(1500);
     }
   };
@@ -135,7 +135,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
   // Sync sliders when current motor pulses from simulation/sequencer update
   useEffect(() => {
     if (currentM1 >= 1500 && currentM1 <= 2500) setTestM1(currentM1);
-    if (currentM2 >= 1500 && currentM2 <= 2500) setTestM2(currentM2);
+    if (currentM2 >= 1600 && currentM2 <= 2600) setTestM2(currentM2);
     if (currentM3 >= 1500 && currentM3 <= 2500) setTestM3(currentM3);
   }, [currentM1, currentM2, currentM3]);
 
@@ -178,9 +178,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       await serialManager.connect(baudRate);
       addLog(`Connected to real robot arm via Web Serial @ ${baudRate} baud`, 'success');
       appendTerminal('sys', `Connected to port @ ${baudRate} baud`);
-      // Immediately home motors to M1:1500, M2:2000, M3:1500
-      await serialManager.homeArm(1500, 2000, 1500);
-      appendTerminal('tx', 'M1 1500 | M2 2000 | M3 1500 | HOME');
+      // Immediately home motors to M1:1500, M2:2100, M3:1500
+      await serialManager.homeArm(1500, 2100, 1500);
+      appendTerminal('tx', 'M1 1500 | M2 2100 | M3 1500 | HOME');
     } catch (err: any) {
       if (err.name !== 'NotFoundError') {
         setStatusMsg(`Connection error: ${err.message}`);
@@ -197,17 +197,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
     addLog('Disconnected from robot arm serial port', 'warn');
   };
 
-  // Home Arm (M1 1500, M2 2000, M3 1500)
+  // Home Arm (M1 1500, M2 2100, M3 1500)
   const handleHomeArm = async () => {
     setTestM1(1500);
-    setTestM2(2000);
+    setTestM2(2100);
     setTestM3(1500);
-    appendTerminal('tx', 'M1 1500 | M2 2000 | M3 1500 | HOME');
+    appendTerminal('tx', 'M1 1500 | M2 2100 | M3 1500 | HOME');
     if (isConnected) {
-      await serialManager.homeArm(1500, 2000, 1500);
-      addLog('Physical Arm: Sent Home commands (M1 1500 | M2 2000 | M3 1500)', 'info');
+      await serialManager.homeArm(1500, 2100, 1500);
+      addLog('Physical Arm: Sent Home commands (M1 1500 | M2 2100 | M3 1500)', 'info');
     } else {
-      addLog('Homed sliders to M1 1500µs, M2 2000µs, M3 1500µs', 'info');
+      addLog('Homed sliders to M1 1500µs, M2 2100µs, M3 1500µs', 'info');
     }
   };
 
@@ -284,7 +284,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Direct Web Serial controller: 1500µs (0°) to 2500µs (+90° Home), integrated Word Sequencer & Live Terminal
+              Direct Web Serial controller: M1/M3 (1500–2500µs), M2 Base Yaw (1600–2600µs), integrated Word Sequencer & Live Terminal
             </p>
           </div>
         </div>
@@ -477,17 +477,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </p>
                 </div>
 
-                {/* Quick Actions (Home Arm: M1 1500, M2 2000, M3 1500, E-Stop) */}
+                {/* Quick Actions (Home Arm: M1 1500, M2 2100, M3 1500, E-Stop) */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={handleHomeArm}
                     className="p-2.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer"
-                    title="Home Arm: M1 1500µs, M2 2000µs, M3 1500µs"
+                    title="Home Arm: M1 1500µs, M2 2100µs, M3 1500µs"
                   >
                     <RotateCcw className="w-4 h-4 text-sky-400" />
                     <div className="flex flex-col items-start">
                       <span>Home Arm</span>
-                      <span className="text-[9px] text-sky-400/80 font-mono">M1:1500 M2:2000 M3:1500</span>
+                      <span className="text-[9px] text-sky-400/80 font-mono">M1:1500 M2:2100 M3:1500</span>
                     </div>
                   </button>
 
@@ -504,11 +504,11 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </button>
                 </div>
 
-                {/* Manual Servo Pulse Sliders: 1500us to 2500us (M2 Base Zero: 2000us +/-45°) */}
+                {/* Manual Servo Pulse Sliders: M1/M3 (1500us to 2500us), M2 Base Yaw (1600us to 2600us, Center 2100us) */}
                 <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-200">Manual Servo Pulse Testing</span>
-                    <span className="text-[10px] text-slate-400 font-mono">[1500µs &rarr; 2500µs]</span>
+                    <span className="text-[10px] text-slate-400 font-mono">[M1/M3: 1500–2500µs | M2: 1600–2600µs]</span>
                   </div>
 
                   {/* Motor 1: Shoulder Elevation (Flipped: M1 is Shoulder in real life) */}
@@ -545,18 +545,18 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     </div>
                   </div>
 
-                  {/* Motor 2: Base Yaw (Flipped: M2 is Base in real life, Zero is 2000us for +/-45 deg) */}
+                  {/* Motor 2: Base Yaw (M2 is Base in real life, min is 1600us, max is 2600us, center is 2100us) */}
                   <div className="space-y-1 pt-2 border-t border-slate-900">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-amber-300 font-medium">M2 (Base Yaw θ₀)</span>
                       <span className="font-mono text-slate-200 font-bold">
-                        {testM2} µs ({(testM2 / 1000).toFixed(2)} ms) &bull; {(((testM2 - 2000) * 45) / 500).toFixed(1)}°
+                        {testM2} µs ({(testM2 / 1000).toFixed(2)} ms) &bull; {(((testM2 - 2100) * 45) / 500).toFixed(1)}°
                       </span>
                     </div>
                     <input
                       type="range"
-                      min="1500"
-                      max="2500"
+                      min="1600"
+                      max="2600"
                       step="5"
                       value={testM2}
                       onChange={(e) => {
@@ -567,14 +567,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                       className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded cursor-pointer"
                     />
                     <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                      <button onClick={() => { setTestM2(1500); handleSendSingleMotor(2, 1500); }} className="hover:text-amber-300 cursor-pointer">
-                        1500µs (-45° Left)
+                      <button onClick={() => { setTestM2(1600); handleSendSingleMotor(2, 1600); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-400">
+                        1600µs (-45° Min)
                       </button>
                       <button onClick={() => { setTestM2(2000); handleSendSingleMotor(2, 2000); }} className="hover:text-amber-300 cursor-pointer">
-                        2000µs (0° Zero Base)
+                        2000µs (-9°)
                       </button>
-                      <button onClick={() => { setTestM2(2500); handleSendSingleMotor(2, 2500); }} className="hover:text-amber-300 cursor-pointer">
-                        2500µs (+45° Right)
+                      <button onClick={() => { setTestM2(2100); handleSendSingleMotor(2, 2100); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-300">
+                        2100µs (0° Center)
+                      </button>
+                      <button onClick={() => { setTestM2(2600); handleSendSingleMotor(2, 2600); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-400">
+                        2600µs (+45° Max)
                       </button>
                     </div>
                   </div>
@@ -741,8 +744,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   <li>Signal: <span className="text-amber-300 font-bold">GPIO 19</span> (Pin 10 Uno)</li>
                   <li>Power: External 5V/6V (+)</li>
                   <li>Ground: Common GND (-)</li>
-                  <li>Zero: 1500 µs (0°)</li>
-                  <li>Home: 2500 µs (+90°)</li>
+                  <li>Min: 1600 µs (-45° Left)</li>
+                  <li>Center: 2100 µs (0° Forward)</li>
+                  <li>Max: 2600 µs (+45° Right)</li>
                 </ul>
               </div>
 
@@ -837,29 +841,32 @@ const FIRMWARE_SOURCE = `#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32)
 #endif
 
 Servo servo1, servo2, servo3;
-const int ZERO_US = 1500; // 0 deg position (1.5ms)
-const int HOME_US = 2500; // Home position (+90 deg, 2.5ms)
+// M1 Shoulder & M3 Elbow: 1500us (0 deg) to 2500us (+90 deg)
+// M2 Base Yaw: Min 1600us (-45 deg), Center 2100us (0 deg), Max 2600us (+45 deg)
+const int M1_HOME_US = 1500;
+const int M2_HOME_US = 2100; // Center Base Yaw (min 1600, max 2600)
+const int M3_HOME_US = 1500;
 
 void setup() {
   Serial.begin(115200);
   servo1.attach(PIN_M1, 1000, 2600);
-  servo2.attach(PIN_M2, 1000, 2600);
+  servo2.attach(PIN_M2, 1000, 2700); // Attach with headroom for 1600-2600us
   servo3.attach(PIN_M3, 1000, 2600);
   setHome();
 }
 
 void setHome() {
-  servo1.writeMicroseconds(HOME_US);
-  servo2.writeMicroseconds(HOME_US);
-  servo3.writeMicroseconds(HOME_US);
-  Serial.println("OK: Homed all motors to 2500us (+90 deg)");
+  servo1.writeMicroseconds(M1_HOME_US);
+  servo2.writeMicroseconds(M2_HOME_US);
+  servo3.writeMicroseconds(M3_HOME_US);
+  Serial.println("OK: Homed motors to M1=1500us, M2=2100us, M3=1500us");
 }
 
 void setZero() {
-  servo1.writeMicroseconds(ZERO_US);
-  servo2.writeMicroseconds(ZERO_US);
-  servo3.writeMicroseconds(ZERO_US);
-  Serial.println("OK: Zeroed all motors to 1500us (0 deg)");
+  servo1.writeMicroseconds(1500);
+  servo2.writeMicroseconds(2100);
+  servo3.writeMicroseconds(1500);
+  Serial.println("OK: Centered all motors (M1 1500, M2 2100, M3 1500)");
 }
 
 void loop() {
