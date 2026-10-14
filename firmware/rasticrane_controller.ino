@@ -5,21 +5,22 @@
   Target Hardware: ESP32-S3, ESP32, Arduino Uno / Mega / Nano, Teensy
   
   Controls 3 PWM Servos:
-    - Motor 1 (M1): Base Yaw     (Pin 18 on ESP32, or Pin 9 on Arduino)
-    - Motor 2 (M2): Shoulder Elev(Pin 19 on ESP32, or Pin 10 on Arduino)
+    - Motor 1 (M1): Shoulder Elev(Pin 18 on ESP32, or Pin 9 on Arduino)
+    - Motor 2 (M2): Base Yaw     (Pin 19 on ESP32, or Pin 10 on Arduino)
     - Motor 3 (M3): Elbow Elev   (Pin 20 on ESP32, or Pin 11 on Arduino)
 
-  Pulse Widths (Standard RASTICrane PWM Specifications):
-    - Neutral Home: 1.5 ms (1500 microseconds) for all motors
-    - Working Range: 1300 us (-45 deg) to 1700 us (+45 deg)
-    - PWM Frequency: 50 Hz (20 ms period)
+  Pulse Widths:
+    - Zero Position: 1500 us (0 deg)
+    - Home Position: 2500 us (+90 deg)
+    - Range: 1500 us to 2500 us
 
   Serial Command Protocol (115200 baud, LF or CRLF terminator):
-    - M1 <microseconds>       -> e.g. "M1 1500"
-    - M2 <microseconds>       -> e.g. "M2 1500"
-    - M3 <microseconds>       -> e.g. "M3 1500"
-    - POS <m1> <m2> <m3>      -> e.g. "POS 1500 1480 1520"
-    - HOME                    -> Sets M1, M2, M3 all to 1500 us (1.5ms)
+    - M1 <microseconds>       -> Shoulder servo (e.g. "M1 2000")
+    - M2 <microseconds>       -> Base servo     (e.g. "M2 1800")
+    - M3 <microseconds>       -> Elbow servo    (e.g. "M3 2500")
+    - POS <m1> <m2> <m3>      -> e.g. "POS 2500 2500 2500"
+    - HOME                    -> Sets M1, M2, M3 all to 2500 us (+90 deg)
+    - ZERO                    -> Sets M1, M2, M3 all to 1500 us (0 deg)
     - STOP                    -> Detaches all servos (safe release / E-STOP)
     - PING                    -> Responds "PONG" with current pulse widths
   =============================================================================
@@ -27,20 +28,20 @@
 
 #if defined(ESP32) || defined(ARDUINO_ARCH_ESP32)
   #include <ESP32Servo.h>
-  #define PIN_M1 18 // Base Yaw
-  #define PIN_M2 19 // Shoulder
+  #define PIN_M1 18 // Shoulder
+  #define PIN_M2 19 // Base Yaw
   #define PIN_M3 20 // Elbow
 #else
   #include <Servo.h>
-  #define PIN_M1 9  // Base Yaw
-  #define PIN_M2 10 // Shoulder
+  #define PIN_M1 9  // Shoulder
+  #define PIN_M2 10 // Base Yaw
   #define PIN_M3 11 // Elbow
 #endif
 
 // Servos
-Servo servo1; // Base
-Servo servo2; // Shoulder
-Servo servo3; // Elbow
+Servo servo1; // Shoulder (M1)
+Servo servo2; // Base (M2)
+Servo servo3; // Elbow (M3)
 
 // Pulse Limits (Microseconds)
 const int MIN_PULSE_US = 1000;

@@ -531,10 +531,10 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     <span className="text-[10px] text-slate-400 font-mono">[1500µs (0°) &rarr; 2500µs (+90°)]</span>
                   </div>
 
-                  {/* Motor 1: Base Yaw */}
+                  {/* Motor 1: Shoulder Elevation (Flipped: M1 is Shoulder in real life) */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-amber-300 font-medium">M1 (Base Yaw θ₀)</span>
+                      <span className="text-emerald-300 font-medium">M1 (Shoulder θ₁)</span>
                       <span className="font-mono text-slate-200 font-bold">
                         {testM1} µs ({(testM1 / 1000).toFixed(2)} ms) &bull; {(((testM1 - 1500) * 90) / 1000).toFixed(1)}°
                       </span>
@@ -550,25 +550,25 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                         setTestM1(v);
                         handleSendSingleMotor(1, v);
                       }}
-                      className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded cursor-pointer"
+                      className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded cursor-pointer"
                     />
                     <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                      <button onClick={() => { setTestM1(1500); handleSendSingleMotor(1, 1500); }} className="hover:text-amber-300 cursor-pointer">
+                      <button onClick={() => { setTestM1(1500); handleSendSingleMotor(1, 1500); }} className="hover:text-emerald-300 cursor-pointer">
                         1500µs (0° Zero)
                       </button>
-                      <button onClick={() => { setTestM1(2000); handleSendSingleMotor(1, 2000); }} className="hover:text-amber-300 cursor-pointer">
+                      <button onClick={() => { setTestM1(2000); handleSendSingleMotor(1, 2000); }} className="hover:text-emerald-300 cursor-pointer">
                         2000µs (+45° Mid)
                       </button>
-                      <button onClick={() => { setTestM1(2500); handleSendSingleMotor(1, 2500); }} className="hover:text-amber-300 cursor-pointer">
+                      <button onClick={() => { setTestM1(2500); handleSendSingleMotor(1, 2500); }} className="hover:text-emerald-300 cursor-pointer">
                         2500µs (+90° Home)
                       </button>
                     </div>
                   </div>
 
-                  {/* Motor 2: Shoulder Elevation */}
+                  {/* Motor 2: Base Yaw (Flipped: M2 is Base in real life) */}
                   <div className="space-y-1 pt-2 border-t border-slate-900">
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-emerald-300 font-medium">M2 (Shoulder θ₁)</span>
+                      <span className="text-amber-300 font-medium">M2 (Base Yaw θ₀)</span>
                       <span className="font-mono text-slate-200 font-bold">
                         {testM2} µs ({(testM2 / 1000).toFixed(2)} ms) &bull; {(((testM2 - 1500) * 90) / 1000).toFixed(1)}°
                       </span>
@@ -584,16 +584,16 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                         setTestM2(v);
                         handleSendSingleMotor(2, v);
                       }}
-                      className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded cursor-pointer"
+                      className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded cursor-pointer"
                     />
                     <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                      <button onClick={() => { setTestM2(1500); handleSendSingleMotor(2, 1500); }} className="hover:text-emerald-300 cursor-pointer">
+                      <button onClick={() => { setTestM2(1500); handleSendSingleMotor(2, 1500); }} className="hover:text-amber-300 cursor-pointer">
                         1500µs (0° Zero)
                       </button>
-                      <button onClick={() => { setTestM2(2000); handleSendSingleMotor(2, 2000); }} className="hover:text-emerald-300 cursor-pointer">
+                      <button onClick={() => { setTestM2(2000); handleSendSingleMotor(2, 2000); }} className="hover:text-amber-300 cursor-pointer">
                         2000µs (+45° Mid)
                       </button>
-                      <button onClick={() => { setTestM2(2500); handleSendSingleMotor(2, 2500); }} className="hover:text-emerald-300 cursor-pointer">
+                      <button onClick={() => { setTestM2(2500); handleSendSingleMotor(2, 2500); }} className="hover:text-amber-300 cursor-pointer">
                         2500µs (+90° Home)
                       </button>
                     </div>
@@ -745,9 +745,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg">
-                <div className="font-bold text-amber-400 text-xs mb-1">Motor 1 (Base Yaw)</div>
+                <div className="font-bold text-emerald-400 text-xs mb-1">Motor 1 (Shoulder)</div>
                 <ul className="text-[11px] space-y-1 text-slate-300 font-mono">
-                  <li>Signal: <span className="text-amber-300 font-bold">GPIO 18</span> (Pin 9 Uno)</li>
+                  <li>Signal: <span className="text-emerald-300 font-bold">GPIO 18</span> (Pin 9 Uno)</li>
                   <li>Power: External 5V/6V (+)</li>
                   <li>Ground: Common GND (-)</li>
                   <li>Zero: 1500 µs (0°)</li>
@@ -756,9 +756,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
               </div>
 
               <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg">
-                <div className="font-bold text-emerald-400 text-xs mb-1">Motor 2 (Shoulder)</div>
+                <div className="font-bold text-amber-400 text-xs mb-1">Motor 2 (Base Yaw)</div>
                 <ul className="text-[11px] space-y-1 text-slate-300 font-mono">
-                  <li>Signal: <span className="text-emerald-300 font-bold">GPIO 19</span> (Pin 10 Uno)</li>
+                  <li>Signal: <span className="text-amber-300 font-bold">GPIO 19</span> (Pin 10 Uno)</li>
                   <li>Power: External 5V/6V (+)</li>
                   <li>Ground: Common GND (-)</li>
                   <li>Zero: 1500 µs (0°)</li>
@@ -846,13 +846,13 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
 
 const FIRMWARE_SOURCE = `#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32)
   #include <ESP32Servo.h>
-  #define PIN_M1 18 // Base Yaw
-  #define PIN_M2 19 // Shoulder
+  #define PIN_M1 18 // Shoulder
+  #define PIN_M2 19 // Base Yaw
   #define PIN_M3 20 // Elbow
 #else
   #include <Servo.h>
-  #define PIN_M1 9  // Base Yaw
-  #define PIN_M2 10 // Shoulder
+  #define PIN_M1 9  // Shoulder
+  #define PIN_M2 10 // Base Yaw
   #define PIN_M3 11 // Elbow
 #endif
 

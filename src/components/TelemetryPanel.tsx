@@ -98,63 +98,39 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
           <div className="pt-1 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center gap-1">
             <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
             <span className="text-emerald-400 font-mono">
-              s0: {angles3DOF.m1_us} | ssh: {angles3DOF.m2_us} | sel: {angles3DOF.m3_us}
+              ssh (M1): {angles3DOF.m1_us} | s0 (M2): {angles3DOF.m2_us} | sel (M3): {angles3DOF.m3_us}
             </span>
           </div>
         </div>
       </div>
 
-      {/* 3-DOF Joint Angles & Microsecond Servo PWM Pulse Widths (s0, ssh, sel) */}
+      {/* 3-DOF Joint Angles & Microsecond Servo PWM Pulse Widths (M1=Shoulder, M2=Base, M3=Elbow) */}
       <div className="p-2.5 bg-slate-950 rounded border border-slate-800/80 space-y-2 font-mono">
         <div className="flex items-center justify-between text-slate-300 font-semibold text-[11px] pb-1 border-b border-slate-800">
           <span className="flex items-center gap-1.5 text-purple-400">
             <Cpu className="w-3.5 h-3.5" />
-            Servo Commands (s0, ssh, sel) & Kinematics
+            Servo Commands (M1=Shoulder, M2=Base, M3=Elbow)
           </span>
-          {angles3DOF.m1_us === 1500 && angles3DOF.m2_us === 1500 && angles3DOF.m3_us === 1500 ? (
+          {angles3DOF.m1_us === 2500 && angles3DOF.m2_us === 2500 && angles3DOF.m3_us === 2500 ? (
             <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px]">
-              Home: 1.5ms for all motors
+              Home: 2500µs (+90°)
             </span>
           ) : (
-            <span className="text-[10px] text-slate-400">Home = 1.5ms (1500µs)</span>
+            <span className="text-[10px] text-slate-400">Range: 1500–2500µs</span>
           )}
         </div>
 
-        {/* Joint 1: Base Yaw theta0 (s0) */}
-        <div>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-slate-400 flex items-center gap-1">
-              <Compass className="w-3 h-3 text-sky-400" />
-              Base Yaw θ0 (s0):
-            </span>
-            <span className="text-sky-300 font-semibold">
-              {angles3DOF.baseDeg.toFixed(1)}° &rarr;{' '}
-              <span className="text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-800/50">
-                {angles3DOF.m1_us} µs ({(angles3DOF.m1_us / 1000).toFixed(2)} ms)
-              </span>
-            </span>
-          </div>
-          <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-1">
-            <div
-              className="bg-sky-400 h-full transition-all duration-75"
-              style={{
-                width: `${Math.min(100, Math.max(0, ((angles3DOF.baseDeg + 45) / 90) * 100))}%`,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Joint 2: Shoulder theta1 (ssh) */}
+        {/* Joint 1: Shoulder theta1 (M1 / ssh) */}
         <div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-400 flex items-center gap-1">
               <Zap className="w-3 h-3 text-emerald-400" />
-              Shoulder θ1 (ssh):
+              Shoulder θ1 (M1 / ssh):
             </span>
             <span className="text-emerald-300 font-semibold">
               {angles3DOF.shoulderDeg.toFixed(1)}° &rarr;{' '}
               <span className="text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-800/50">
-                {angles3DOF.m2_us} µs ({(angles3DOF.m2_us / 1000).toFixed(2)} ms)
+                {angles3DOF.m1_us} µs ({(angles3DOF.m1_us / 1000).toFixed(2)} ms)
               </span>
             </span>
           </div>
@@ -168,12 +144,36 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
           </div>
         </div>
 
-        {/* Joint 3: Elbow theta2 (sel) */}
+        {/* Joint 2: Base Yaw theta0 (M2 / s0) */}
+        <div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-slate-400 flex items-center gap-1">
+              <Compass className="w-3 h-3 text-sky-400" />
+              Base Yaw θ0 (M2 / s0):
+            </span>
+            <span className="text-sky-300 font-semibold">
+              {angles3DOF.baseDeg.toFixed(1)}° &rarr;{' '}
+              <span className="text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-800/50">
+                {angles3DOF.m2_us} µs ({(angles3DOF.m2_us / 1000).toFixed(2)} ms)
+              </span>
+            </span>
+          </div>
+          <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-1">
+            <div
+              className="bg-sky-400 h-full transition-all duration-75"
+              style={{
+                width: `${Math.min(100, Math.max(0, ((angles3DOF.baseDeg + 45) / 90) * 100))}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Joint 3: Elbow theta2 (M3 / sel) */}
         <div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-400 flex items-center gap-1">
               <Zap className="w-3 h-3 text-amber-400" />
-              Elbow θ2 (sel):
+              Elbow θ2 (M3 / sel):
             </span>
             <span className="text-amber-300 font-semibold">
               {angles3DOF.elbowDeg.toFixed(1)}° &rarr;{' '}

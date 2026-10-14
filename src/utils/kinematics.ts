@@ -115,9 +115,9 @@ export function solve3DOF_IK(
         baseRad: base_rad,
         shoulderRad: 0,
         elbowRad: 0,
-        m1_us: mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500),
-        m2_us: HOME_MOTOR_PULSE_US,
-        m3_us: HOME_MOTOR_PULSE_US,
+        m1_us: HOME_MOTOR_PULSE_US, // Motor 1 = Shoulder
+        m2_us: mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500), // Motor 2 = Base
+        m3_us: HOME_MOTOR_PULSE_US, // Motor 3 = Elbow
       };
     }
   }
@@ -136,11 +136,13 @@ export function solve3DOF_IK(
   const shoulder_deg = radToDeg(shoulder_rad);
   const elbow_deg = radToDeg(elbow_rad);
 
-  // Map joint angles to microsecond pulse widths [1500, 2500] over [0, 90] deg:
-  // 0 deg = 1500us (1.5ms), +90 deg = 2500us (2.5ms)
-  const m1_us = mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500);
-  const m2_us = mapAngleToUs(Math.abs(shoulder_deg), 0, 90, 1500, 2500);
-  const m3_us = mapAngleToUs(Math.abs(elbow_deg), 0, 90, 1500, 2500);
+  // Real-life arm motor mapping (Shoulder and Base are flipped):
+  // Motor 1 (M1) = Shoulder (theta1 / ssh)
+  // Motor 2 (M2) = Base Yaw (theta0 / s0)
+  // Motor 3 (M3) = Elbow (theta2 / sel)
+  const m1_shoulder_us = mapAngleToUs(Math.abs(shoulder_deg), 0, 90, 1500, 2500);
+  const m2_base_us = mapAngleToUs(Math.abs(base_deg), 0, 90, 1500, 2500);
+  const m3_elbow_us = mapAngleToUs(Math.abs(elbow_deg), 0, 90, 1500, 2500);
 
   return {
     baseDeg: base_deg,
@@ -149,9 +151,9 @@ export function solve3DOF_IK(
     baseRad: base_rad,
     shoulderRad: shoulder_rad,
     elbowRad: elbow_rad,
-    m1_us,
-    m2_us,
-    m3_us,
+    m1_us: m1_shoulder_us,
+    m2_us: m2_base_us,
+    m3_us: m3_elbow_us,
   };
 }
 

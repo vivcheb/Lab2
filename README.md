@@ -97,11 +97,11 @@ You have **3 ways** to control the physical RASTICrane 3-DOF robot arm:
 ### 1. Wiring & Microcontroller Hardware Setup
 Connect your 3 PWM servos to your microcontroller (ESP32-S3 or Arduino Uno/Mega):
 
-| Servo | Function | ESP32 Pin | Arduino Pin | Neutral Pulse (Home) | Working Range |
+| Servo | Function | ESP32 Pin | Arduino Pin | Home Position | Working Range |
 |---|---|---|---|---|---|
-| **Motor 1 (M1)** | Base Yaw ($\theta_0$) | **GPIO 18** | **Pin 9** | 1500 µs (1.5 ms) | 1300 µs (-45°) to 1700 µs (+45°) |
-| **Motor 2 (M2)** | Shoulder Elevation ($\theta_1$) | **GPIO 19** | **Pin 10** | 1500 µs (1.5 ms) | 1300 µs (-45°) to 1700 µs (+45°) |
-| **Motor 3 (M3)** | Elbow Elevation ($\theta_2$) | **GPIO 20** | **Pin 11** | 1500 µs (1.5 ms) | 1300 µs (-45°) to 1700 µs (+45°) |
+| **Motor 1 (M1)** | Shoulder Elevation ($\theta_1$) | **GPIO 18** | **Pin 9** | 2500 µs (+90° Home) | 1500 µs (0°) to 2500 µs (+90°) |
+| **Motor 2 (M2)** | Base Yaw ($\theta_0$) | **GPIO 19** | **Pin 10** | 2500 µs (+90° Home) | 1500 µs (0°) to 2500 µs (+90°) |
+| **Motor 3 (M3)** | Elbow Elevation ($\theta_2$) | **GPIO 20** | **Pin 11** | 2500 µs (+90° Home) | 1500 µs (0°) to 2500 µs (+90°) |
 
 > ⚠️ **Power Caution**: Do NOT power servos directly from the microcontroller 5V pin! Use an external 5V/6V 2A–3A DC power supply for servo power ($+$ and $-$). **Always connect the external power supply GND to the microcontroller GND** (common ground).
 

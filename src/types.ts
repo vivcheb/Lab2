@@ -15,15 +15,15 @@ export interface JointAngles {
 }
 
 export interface JointAngles3DOF {
-  baseDeg: number;       // theta0 / s0 degrees [-45, 45]
-  shoulderDeg: number;   // theta1 / ssh degrees [-45, 45]
-  elbowDeg: number;      // theta2 / sel degrees [-45, 45]
+  baseDeg: number;       // theta0 / s0 degrees
+  shoulderDeg: number;   // theta1 / ssh degrees
+  elbowDeg: number;      // theta2 / sel degrees
   baseRad: number;
   shoulderRad: number;
   elbowRad: number;
-  m1_us: number;         // microsecond PWM [1300, 1700]
-  m2_us: number;         // microsecond PWM [1300, 1700]
-  m3_us: number;         // microsecond PWM [1300, 1700]
+  m1_us: number;         // microsecond PWM: Motor 1 = Shoulder [1500, 2500]
+  m2_us: number;         // microsecond PWM: Motor 2 = Base Yaw [1500, 2500]
+  m3_us: number;         // microsecond PWM: Motor 3 = Elbow [1500, 2500]
 }
 
 export interface SlotData {
