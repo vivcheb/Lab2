@@ -109,19 +109,37 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         const step = seq[i];
         const cmd = `${step.motor} ${step.pulseUs}`;
         if (seqType === 'PBB' && i === 2) {
-          // Intermediate values ONLY for M3 1.890ms -> M3 1.5ms after M1 1760
-          const startVal = 1890;
-          const targetVal = 1500;
-          const numSubSteps = 20;
-          for (let s = 1; s <= numSubSteps; s++) {
-            const subPulse = Math.round(startVal + ((targetVal - startVal) * s) / numSubSteps);
+          // Intermediate values ONLY for M3 1.890ms -> M3 1.6ms slow, then M3 1.6ms -> 1.5ms quick after M1 1760
+          // Stage 1: 1890 -> 1600 SLOW (20 steps with 70ms = 1.4s)
+          const startVal1 = 1890;
+          const targetVal1 = 1600;
+          const numSlowSteps = 20;
+          for (let s = 1; s <= numSlowSteps; s++) {
+            const subPulse = Math.round(startVal1 + ((targetVal1 - startVal1) * s) / numSlowSteps);
             if (serialManager.getIsConnected()) {
               await serialManager.sendCommand(`M3 ${subPulse}`);
             }
-            await new Promise((res) => setTimeout(res, 50));
+            await new Promise((res) => setTimeout(res, 70));
           }
+
           if (serialManager.getIsConnected()) {
-            await serialManager.sendCommand(`M3 ${targetVal}`);
+            await serialManager.sendCommand('M3 1600');
+          }
+
+          // Stage 2: 1600 -> 1500 QUICK (5 steps with 20ms = 100ms)
+          const startVal2 = 1600;
+          const targetVal2 = 1500;
+          const numQuickSteps = 5;
+          for (let s = 1; s <= numQuickSteps; s++) {
+            const subPulse = Math.round(startVal2 + ((targetVal2 - startVal2) * s) / numQuickSteps);
+            if (serialManager.getIsConnected()) {
+              await serialManager.sendCommand(`M3 ${subPulse}`);
+            }
+            await new Promise((res) => setTimeout(res, 20));
+          }
+
+          if (serialManager.getIsConnected()) {
+            await serialManager.sendCommand('M3 1500');
           }
         } else {
           if (serialManager.getIsConnected()) {
@@ -325,7 +343,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   disabled={Boolean(runningSeq) || isAnimating}
                   onClick={() => handleRunSeq('PBB')}
                   className="py-1.5 px-1 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
-                  title="PBB: M3 1890 -> M1 1760 -> M3 1.5 (intermediate values) -> M1 2 (wait 2s between each command)"
+                  title="PBB: M3 1890 -> M1 1760 -> M3 1.89ms->1.6ms (slow) then ->1.5ms (quick) -> M1 2 (wait 2s between each command)"
                 >
                   <Play className="w-2.5 h-2.5 fill-current" />
                   <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB'}</span>

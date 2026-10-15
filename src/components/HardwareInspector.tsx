@@ -116,30 +116,56 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
         setSequenceStepIndex(i);
         const step = seq[i];
 
-        // Special condition for PBB: intermediate values ONLY when transitioning M3 1.890ms -> M3 1.5ms after M1 1760
+        // Special condition for PBB: intermediate values ONLY when transitioning M3 1.890ms -> 1.6ms (slow) then 1.6ms -> 1.5ms (quick) after M1 1760
         if (seqType === 'PBB' && i === 2) {
-          const startVal = 1890;
-          const targetVal = 1500;
-          const numSubSteps = 20;
-          const subStepDelay = 50; // 20 * 50ms = 1.0s smooth transition
+          appendTerminal('tx', `[PBB Step 3/4] Intermediate: M3 1890µs → 1600µs (Slow) then 1600µs → 1500µs (Quick)`);
+          addLog(`[PBB Step 3] Moving M3 slowly from 1.890ms (1890µs) to 1.6ms (1600µs)...`, 'info');
 
-          appendTerminal('tx', `[PBB Step 3/4] Intermediate transition: M3 ${startVal}µs → ${targetVal}µs (${step.label})`);
-          addLog(`[PBB Step 3] Moving M3 from 1.890ms (1890µs) to 1.5ms (1500µs) with intermediate values...`, 'info');
+          // Stage 1: 1890µs -> 1600µs SLOW (20 sub-steps with 70ms delay = 1.4s)
+          const startVal1 = 1890;
+          const targetVal1 = 1600;
+          const numSlowSteps = 20;
+          const slowDelay = 70;
 
-          for (let s = 1; s <= numSubSteps; s++) {
+          for (let s = 1; s <= numSlowSteps; s++) {
             if (abortSequenceRef.current) break;
-            const subPulse = Math.round(startVal + ((targetVal - startVal) * s) / numSubSteps);
+            const subPulse = Math.round(startVal1 + ((targetVal1 - startVal1) * s) / numSlowSteps);
             setTestM3(subPulse);
             if (isConnected) {
               await serialManager.sendCommand(`M3 ${subPulse}`);
             }
-            await new Promise((res) => setTimeout(res, subStepDelay));
+            await new Promise((res) => setTimeout(res, slowDelay));
           }
-          setTestM3(targetVal);
-          if (isConnected) {
-            await serialManager.sendCommand(`M3 ${targetVal}`);
+
+          if (!abortSequenceRef.current) {
+            setTestM3(1600);
+            if (isConnected) {
+              await serialManager.sendCommand('M3 1600');
+            }
+            addLog(`[PBB Step 3] M3 reached 1.6ms (1600µs) — now moving quickly to 1.5ms (1500µs)...`, 'info');
+
+            // Stage 2: 1600µs -> 1500µs QUICK (5 sub-steps with 20ms delay = 100ms)
+            const startVal2 = 1600;
+            const targetVal2 = 1500;
+            const numQuickSteps = 5;
+            const quickDelay = 20;
+
+            for (let s = 1; s <= numQuickSteps; s++) {
+              if (abortSequenceRef.current) break;
+              const subPulse = Math.round(startVal2 + ((targetVal2 - startVal2) * s) / numQuickSteps);
+              setTestM3(subPulse);
+              if (isConnected) {
+                await serialManager.sendCommand(`M3 ${subPulse}`);
+              }
+              await new Promise((res) => setTimeout(res, quickDelay));
+            }
+
+            setTestM3(1500);
+            if (isConnected) {
+              await serialManager.sendCommand('M3 1500');
+            }
+            addLog(`[PBB Step 3] M3 reached 1.5ms (1500µs) successfully!`, 'info');
           }
-          addLog(`[PBB Step 3] M3 reached 1.5ms (${targetVal}µs)`, 'info');
         } else {
           // All other steps are direct without intermediate values
           if (step.motor === 'M1') setTestM1(step.pulseUs);
@@ -946,13 +972,13 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                           </button>
                           <div>
                             <div className="text-[11px] font-bold text-sky-300">PBB Sequence</div>
-                            <div className="text-[9px] text-sky-400/80 font-mono">M3 1890 &rarr; M1 1760 &rarr; M3 1.5 (intermediate values) &rarr; M1 2 (2s wait)</div>
+                            <div className="text-[9px] text-sky-400/80 font-mono">M3 1890 &rarr; M1 1760 &rarr; M3 1.89ms&rarr;1.6ms (slow) then &rarr;1.5ms (quick) &rarr; M1 2 (2s wait)</div>
                           </div>
                         </div>
 
                         {runningSequence === 'PBB' && (
                           <span className="text-[10px] font-mono text-sky-300 animate-pulse bg-sky-900/60 px-2 py-0.5 rounded border border-sky-400">
-                            {sequenceStepIndex === 2 ? 'Step 3: M3 1.890ms → 1.5ms (intermediate values)...' : `Step ${sequenceStepIndex + 1}/4 (2s wait)`}
+                            {sequenceStepIndex === 2 ? 'Step 3: M3 1.89ms→1.6ms slow, then →1.5ms quick...' : `Step ${sequenceStepIndex + 1}/4 (2s wait)`}
                           </span>
                         )}
                       </div>
@@ -972,10 +998,10 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                                   ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
                                   : 'bg-slate-950 text-slate-400 border-slate-800'
                               }`}
-                              title={idx === 2 ? 'M3: smooth intermediate transition from 1.890ms to 1.5ms' : `${s.label} (waits 2s)`}
+                              title={idx === 2 ? 'M3: 1.890ms to 1.6ms slow, then 1.6ms to 1.5ms quick' : `${s.label} (waits 2s)`}
                             >
                               {s.label}
-                              {idx === 2 ? ' (intermediate)' : ' (2s)'}
+                              {idx === 2 ? ' (slow→quick)' : ' (2s)'}
                             </span>
                           );
                         })}
@@ -1652,15 +1678,19 @@ void loop() {
       servo3.writeMicroseconds(1890); delay(2000);
       // Step 2: M1 1760 direct
       servo1.writeMicroseconds(1760); delay(2000);
-      // Step 3: Intermediate values ONLY when transitioning M3 1.890ms -> 1.5ms after M1 1760
-      for (int pos = 1890; pos >= 1500; pos -= 15) {
+      // Step 3: Intermediate values ONLY when transitioning M3 1.890ms -> 1.6ms SLOW, then 1.6ms -> 1.5ms QUICK
+      for (int pos = 1890; pos >= 1600; pos -= 10) {
         servo3.writeMicroseconds(pos);
-        delay(50);
+        delay(70); // Slow transition
+      }
+      for (int pos = 1600; pos >= 1500; pos -= 20) {
+        servo3.writeMicroseconds(pos);
+        delay(20); // Quick transition
       }
       servo3.writeMicroseconds(1500); delay(2000);
       // Step 4: M1 2000 direct
       servo1.writeMicroseconds(2000); delay(2000);
-      Serial.println("OK: PBB sequence complete (intermediate values on M3 1890->1500 only)");
+      Serial.println("OK: PBB sequence complete (M3 1890->1600 slow, then 1600->1500 quick)");
     }
     else if (cmd.startsWith("M1 ")) servo1.writeMicroseconds(cmd.substring(3).toInt());
     else if (cmd.startsWith("M2 ")) servo2.writeMicroseconds(cmd.substring(3).toInt());
