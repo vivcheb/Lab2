@@ -254,7 +254,7 @@ export default function App() {
 
         if (calib) {
           addLog(
-            `> Serial TX: M1 ${txM1} | M2 ${txM2} | M3 ${txM3} [Rack Reach '${activeTargetLetter}': M1=${txM1}, M2=${txM2}, M3=${txM3} (${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°)]`,
+            `> Serial TX: M1 ${txM1} | M2 ${txM2} | M3 ${txM3} [Rack Reach '${activeTargetLetter}': M1=${txM1} (Shldr), M2=${txM2} (Base ${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°), M3=${txM3} (Elbow)]`,
             'kinematics'
           );
         } else {

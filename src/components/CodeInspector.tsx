@@ -303,14 +303,14 @@ end`;
 // --- 1/4: Picking up Stamp ['${selectedLetter}'] from Rack ---
 // Physical Calibration (${rackCalib.tier === 'inner' ? 'Inner Tier A-M' : 'Outer Tier N-Z'}):
 M1 ${rackCalib.m1_us}  // M1 Shoulder (${rackCalib.tier === 'inner' ? '1900µs' : '1910µs'})
-M2 ${rackCalib.m2_us}  // M2 Reach (${rackCalib.tier === 'inner' ? '1670µs' : '1810µs'})
-M3 ${rackCalib.m3_us}  // M3 Base Yaw (Rotates 5°/letter: ${rackCalib.angleDeg > 0 ? '+' : ''}${rackCalib.angleDeg}°)
+M2 ${rackCalib.m2_us}  // M2 Base Yaw (Rotates 5°/letter: ${rackCalib.angleDeg > 0 ? '+' : ''}${rackCalib.angleDeg}°)
+M3 ${rackCalib.m3_us}  // M3 Elbow (${rackCalib.tier === 'inner' ? '1670µs' : '1810µs'})
 // Lower to grasp stamp:
 POS ${rackCalib.m1_us} ${rackCalib.m2_us} ${rackCalib.m3_us}
 // Lift stamp (z + 0.05m):
 M1 ${rackCalib.m1_us}
-M2 ${rackCalib.m2_us - 100}
-M3 ${rackCalib.m3_us}
+M2 ${rackCalib.m2_us}
+M3 ${rackCalib.m3_us - 100}
 
 // --- 2/4: Re-inking Stamp on Ink Pad ---
 // Hover above ink pad (z + 0.05m):

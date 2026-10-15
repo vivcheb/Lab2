@@ -81,32 +81,38 @@ export const ALPHABET_26 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 // =========================================================================
 // PHYSICAL CALIBRATION: STAMP RACK LETTERS REACH (A-Z)
-// - Letters A through M (inner rack): M1 = 1900 us, M2 = 1670 us, variable M3 (rotates base 5° per letter)
-// - Letters N through Z (outer rack): M1 = 1910 us, M2 = 1810 us, variable M3 (rotates base 5° per letter)
-// - M3 rotates 5 degrees for each letter (13 letters per tier, centered at 0° for G/T)
+// - Motor 1 (Shoulder): 1900 us (A-M), 1910 us (N-Z)
+// - Motor 2 (Base Yaw): Variable, rotates 5° per letter (1600us to 2600us)
+// - Motor 3 (Elbow):    1670 us (A-M), 1810 us (N-Z)
+// 13 letters per tier, Base Yaw (M2) rotates 5° per letter, centered at 0° for G/T
 // =========================================================================
-export const RACK_INNER_M1_US = 1900;
-export const RACK_INNER_M2_US = 1670;
-export const RACK_OUTER_M1_US = 1910;
-export const RACK_OUTER_M2_US = 1810;
-export const RACK_M3_DEG_PER_LETTER = 5; // 5 degrees per letter
+export const RACK_INNER_M1_US = 1900; // Shoulder
+export const RACK_INNER_M3_US = 1670; // Elbow
+export const RACK_OUTER_M1_US = 1910; // Shoulder
+export const RACK_OUTER_M3_US = 1810; // Elbow
+export const RACK_BASE_DEG_PER_LETTER = 5; // 5 degrees per letter for Base (M2)
+
+// Deprecated alias for backwards compatibility
+export const RACK_INNER_M2_US = RACK_INNER_M3_US;
+export const RACK_OUTER_M2_US = RACK_OUTER_M3_US;
+export const RACK_M3_DEG_PER_LETTER = RACK_BASE_DEG_PER_LETTER;
 
 export interface StampRackCalibration {
   letter: string;
   tier: 'inner' | 'outer';
   indexInTier: number; // 0 to 12
   angleDeg: number;    // -30° to +30° (5° step per letter, center 0° at G/T)
-  m1_us: number;       // 1900 for A-M, 1910 for N-Z
-  m2_us: number;       // 1670 for A-M, 1810 for N-Z
-  m3_us: number;       // variable base rotation: rotates 5° per letter (1600us to 2600us)
-  m3_angle_deg: number;
+  m1_us: number;       // 1900 for A-M, 1910 for N-Z (Shoulder)
+  m2_us: number;       // variable base rotation: rotates 5° per letter (1600us to 2600us)
+  m3_us: number;       // 1670 for A-M, 1810 for N-Z (Elbow)
+  base_angle_deg: number;
 }
 
 /**
  * Computes exact calibrated motor pulse widths to reach any stamp letter (A-Z)
  * Matches physical calibration:
- * - Inner (A-M): M1=1900, M2=1670, M3 variable (5°/letter)
- * - Outer (N-Z): M1=1910, M2=1810, M3 variable (5°/letter)
+ * - Inner (A-M): M1=1900 (Shoulder), M2 variable Base (5°/letter), M3=1670 (Elbow)
+ * - Outer (N-Z): M1=1910 (Shoulder), M2 variable Base (5°/letter), M3=1810 (Elbow)
  */
 export function getStampRackCalibration(
   letter: string,
@@ -115,28 +121,27 @@ export function getStampRackCalibration(
   const upper = (letter || 'A').toUpperCase();
   let tier: 'inner' | 'outer' = 'inner';
   let indexInTier = 0;
-  let m1_us = RACK_INNER_M1_US;
-  let m2_us = RACK_INNER_M2_US;
+  let m1_us = RACK_INNER_M1_US; // 1900
+  let m3_us = RACK_INNER_M3_US; // 1670
 
   if (upper >= 'A' && upper <= 'M') {
     tier = 'inner';
     indexInTier = upper.charCodeAt(0) - 'A'.charCodeAt(0);
-    m1_us = RACK_INNER_M1_US;
-    m2_us = RACK_INNER_M2_US;
+    m1_us = RACK_INNER_M1_US; // 1900
+    m3_us = RACK_INNER_M3_US; // 1670
   } else if (upper >= 'N' && upper <= 'Z') {
     tier = 'outer';
     indexInTier = upper.charCodeAt(0) - 'N'.charCodeAt(0);
-    m1_us = RACK_OUTER_M1_US;
-    m2_us = RACK_OUTER_M2_US;
+    m1_us = RACK_OUTER_M1_US; // 1910
+    m3_us = RACK_OUTER_M3_US; // 1810
   }
 
-  // 13 letters per tier, M3 rotates 5 degrees for each letter:
+  // 13 letters per tier, Base Yaw (M2) rotates 5 degrees for each letter:
   // Center is index 6 ('G' for A-M, 'T' for N-Z) at 0 degrees
-  const angleDeg = (indexInTier - 6) * RACK_M3_DEG_PER_LETTER; // -30° to +30°
+  const angleDeg = (indexInTier - 6) * RACK_BASE_DEG_PER_LETTER; // -30° to +30°
 
-  // Map 5° per letter to pulse width.
-  // 500 us per 45 deg = 11.111 us / deg. 5 deg = 55.56 us.
-  const m3_us = Math.round(
+  // Map 5° per letter to M2 Base Yaw pulse width (clamped [1600, 2600]):
+  const m2_us = Math.round(
     Math.max(MIN_BASE_YAW_US, Math.min(MAX_BASE_YAW_US, baseCenterUs + (angleDeg / 45) * 500))
   );
 
@@ -148,7 +153,7 @@ export function getStampRackCalibration(
     m1_us,
     m2_us,
     m3_us,
-    m3_angle_deg: angleDeg,
+    base_angle_deg: angleDeg,
   };
 }
 

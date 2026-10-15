@@ -153,15 +153,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <span className="font-semibold text-amber-400">
                   Stamp Rack Calibration (A–Z)
                 </span>
-                <span className="font-mono text-[10px] text-slate-400">
-                  M3: 5°/letter
+                <span className="font-mono text-[10px] text-amber-400/90 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded">
+                  M2 Base: 5°/letter
                 </span>
               </div>
 
               {/* Quick Letter Chips: Inner Tier A-M */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[9px] font-mono text-sky-400">
-                  <span>Inner Rack [A–M] (M1: 1900 | M2: 1670):</span>
+                  <span>Inner Rack [A–M] (M1 Shldr: 1900 | M3 Elbow: 1670):</span>
                   <span>5° step</span>
                 </div>
                 <div className="grid grid-cols-13 gap-0.5">
@@ -191,7 +191,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               {/* Quick Letter Chips: Outer Tier N-Z */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[9px] font-mono text-purple-400">
-                  <span>Outer Rack [N–Z] (M1: 1910 | M2: 1810):</span>
+                  <span>Outer Rack [N–Z] (M1 Shldr: 1910 | M3 Elbow: 1810):</span>
                   <span>5° step</span>
                 </div>
                 <div className="grid grid-cols-13 gap-0.5">
@@ -225,10 +225,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <div className={`p-1.5 rounded flex items-center justify-between text-[11px] font-mono ${
                     isDark ? 'bg-slate-900 border border-slate-800' : 'bg-white border border-slate-200'
                   }`}>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-bold text-amber-400">'{calib.letter}'</span>
-                      <span className="text-[10px] text-slate-400">
-                        M1:{calib.m1_us} | M2:{calib.m2_us} | M3:{calib.m3_us}µs ({calib.angleDeg > 0 ? `+${calib.angleDeg}` : calib.angleDeg}°)
+                      <span className="text-[10px] text-slate-300">
+                        M1:{calib.m1_us} | <span className="text-amber-300 font-semibold">M2 Base:{calib.m2_us}µs ({calib.angleDeg > 0 ? `+${calib.angleDeg}` : calib.angleDeg}°)</span> | M3 Elbow:{calib.m3_us}µs
                       </span>
                     </div>
                     <button

@@ -478,7 +478,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     <span>Stamp Rack Letter Reach Calibration (A–Z)</span>
                   </div>
                   <span className="text-[10px] text-amber-400/90 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                    M3 Rotates 5° per Letter
+                    M2 Base Rotates 5° per Letter
                   </span>
                 </div>
 
@@ -487,13 +487,13 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   <div className="p-2 rounded bg-sky-950/40 border border-sky-500/30 text-sky-200">
                     <span className="font-bold text-sky-300">Inner Tier (A–M):</span>
                     <div className="text-[10px] text-sky-300/80 mt-0.5">
-                      M1: <span className="font-bold text-white">1900µs</span> &bull; M2: <span className="font-bold text-white">1670µs</span> &bull; M3: <span className="text-amber-300 font-semibold">variable (5°/letter)</span>
+                      M1: <span className="font-bold text-white">1900µs</span> &bull; M2 (Base): <span className="text-amber-300 font-semibold">variable (5°/letter)</span> &bull; M3 (Elbow): <span className="font-bold text-white">1670µs</span>
                     </div>
                   </div>
                   <div className="p-2 rounded bg-purple-950/40 border border-purple-500/30 text-purple-200">
                     <span className="font-bold text-purple-300">Outer Tier (N–Z):</span>
                     <div className="text-[10px] text-purple-300/80 mt-0.5">
-                      M1: <span className="font-bold text-white">1910µs</span> &bull; M2: <span className="font-bold text-white">1810µs</span> &bull; M3: <span className="text-amber-300 font-semibold">variable (5°/letter)</span>
+                      M1: <span className="font-bold text-white">1910µs</span> &bull; M2 (Base): <span className="text-amber-300 font-semibold">variable (5°/letter)</span> &bull; M3 (Elbow): <span className="font-bold text-white">1810µs</span>
                     </div>
                   </div>
                 </div>
@@ -501,7 +501,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                 {/* Letter Grid: Inner Tier A-M */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-sky-400 font-mono">
-                    <span>Inner Rack [A–M] (M1: 1900µs | M2: 1670µs):</span>
+                    <span>Inner Rack [A–M] (M1: 1900µs | M3 Elbow: 1670µs | M2 Base: 5°/letter):</span>
                     <span>5° step &bull; Center: G (0°)</span>
                   </div>
                   <div className="grid grid-cols-13 gap-1">
@@ -525,7 +525,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                               ? 'bg-amber-500 text-slate-950 font-black border-amber-300 shadow-md ring-1 ring-amber-400'
                               : 'bg-slate-900/90 hover:bg-sky-900/40 text-slate-200 border-slate-700/80 hover:border-sky-500/50'
                           }`}
-                          title={`Letter ${char}: M1=${calib.m1_us}µs, M2=${calib.m2_us}µs, M3=${calib.m3_us}µs (${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°)`}
+                          title={`Letter ${char}: M1=${calib.m1_us}µs (Shldr), M2=${calib.m2_us}µs (Base ${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°), M3=${calib.m3_us}µs (Elbow)`}
                         >
                           <span className="text-xs font-bold leading-none">{char}</span>
                           <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-80">
@@ -540,7 +540,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                 {/* Letter Grid: Outer Tier N-Z */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-purple-400 font-mono">
-                    <span>Outer Rack [N–Z] (M1: 1910µs | M2: 1810µs):</span>
+                    <span>Outer Rack [N–Z] (M1: 1910µs | M3 Elbow: 1810µs | M2 Base: 5°/letter):</span>
                     <span>5° step &bull; Center: T (0°)</span>
                   </div>
                   <div className="grid grid-cols-13 gap-1">
@@ -564,7 +564,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                               ? 'bg-amber-500 text-slate-950 font-black border-amber-300 shadow-md ring-1 ring-amber-400'
                               : 'bg-slate-900/90 hover:bg-purple-900/40 text-slate-200 border-slate-700/80 hover:border-purple-500/50'
                           }`}
-                          title={`Letter ${char}: M1=${calib.m1_us}µs, M2=${calib.m2_us}µs, M3=${calib.m3_us}µs (${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°)`}
+                          title={`Letter ${char}: M1=${calib.m1_us}µs (Shldr), M2=${calib.m2_us}µs (Base ${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°), M3=${calib.m3_us}µs (Elbow)`}
                         >
                           <span className="text-xs font-bold leading-none">{char}</span>
                           <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-80">
@@ -588,11 +588,11 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                         <div className="text-[11px] text-slate-300 space-x-2">
                           <span>Tier: <strong className="text-slate-100">{currentCalib.tier.toUpperCase()}</strong></span>
                           <span>&bull;</span>
-                          <span>M1: <strong className="text-emerald-400">{currentCalib.m1_us}µs</strong></span>
+                          <span>M1 (Shoulder): <strong className="text-emerald-400">{currentCalib.m1_us}µs</strong></span>
                           <span>&bull;</span>
-                          <span>M2: <strong className="text-sky-400">{currentCalib.m2_us}µs</strong></span>
+                          <span>M2 (Base Yaw): <strong className="text-amber-400">{currentCalib.m2_us}µs ({currentCalib.angleDeg > 0 ? `+${currentCalib.angleDeg}` : currentCalib.angleDeg}°)</strong></span>
                           <span>&bull;</span>
-                          <span>M3 (Base): <strong className="text-amber-400">{currentCalib.m3_us}µs ({currentCalib.angleDeg > 0 ? `+${currentCalib.angleDeg}` : currentCalib.angleDeg}°)</strong></span>
+                          <span>M3 (Elbow): <strong className="text-sky-400">{currentCalib.m3_us}µs</strong></span>
                         </div>
                       </div>
 
