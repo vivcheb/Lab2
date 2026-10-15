@@ -26,7 +26,9 @@ import {
   getStampRackCalibration,
   LETTER_BASE_YAW_MAP,
   PUB_SEQUENCE,
+  PUT_SEQUENCE,
   PBB_SEQUENCE,
+  STAMP_SEQUENCE,
   MAX_BASE_YAW_US,
   MIN_BASE_YAW_US,
   SequenceStep,
@@ -79,17 +81,25 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
   const [testM2, setTestM2] = useState(2100);
   const [testM3, setTestM3] = useState(1500);
 
-  // Sequence runner state for PUB & PBB
-  const [runningSequence, setRunningSequence] = useState<'PUB' | 'PBB' | null>(null);
+  // Direct pulse text inputs (supports '3ms', '3.0ms', '3000', '3', etc.)
+  const [m1InputText, setM1InputText] = useState('1500');
+  const [m2InputText, setM2InputText] = useState('2100');
+  const [m3InputText, setM3InputText] = useState('1500');
+
+  // Sequence runner state for PUB, PUT, PBB, and STAMP
+  const [runningSequence, setRunningSequence] = useState<'PUB' | 'PUT' | 'PBB' | 'STAMP' | null>(null);
   const [sequenceStepIndex, setSequenceStepIndex] = useState<number>(0);
   const abortSequenceRef = useRef<boolean>(false);
 
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Sequence execution for PUB and PBB
-  const handleRunSequence = async (seqType: 'PUB' | 'PBB') => {
+  // Sequence execution for PUB, PUT, PBB, and STAMP
+  const handleRunSequence = async (seqType: 'PUB' | 'PUT' | 'PBB' | 'STAMP') => {
     if (runningSequence) return;
-    const seq = seqType === 'PUB' ? PUB_SEQUENCE : PBB_SEQUENCE;
+    let seq = PUB_SEQUENCE;
+    if (seqType === 'PBB') seq = PBB_SEQUENCE;
+    if (seqType === 'STAMP') seq = STAMP_SEQUENCE;
+
     setRunningSequence(seqType);
     setSequenceStepIndex(0);
     abortSequenceRef.current = false;
@@ -116,8 +126,12 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
         }
         addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
 
-        // 600ms delay between sequence steps for physical servo movement
-        await new Promise((res) => setTimeout(res, 600));
+        // Custom delay or default 600ms (e.g. 3000ms / 3 seconds between M1 2ms and M3 1.8ms in PUB/PUT)
+        const delay = step.delayMs ?? 600;
+        if (delay > 600) {
+          appendTerminal('sys', `[Pause: waiting ${delay / 1000}s before next step...]`);
+        }
+        await new Promise((res) => setTimeout(res, delay));
       }
       if (!abortSequenceRef.current) {
         addLog(`Sequence ${seqType} completed successfully!`, 'success');
@@ -135,47 +149,72 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
     abortSequenceRef.current = true;
   };
 
+  // Helper to parse pulse input strings like "3ms", "3.0ms", "3", "3.0", "3000", "3000us", "1.67ms"
+  const parsePulseInput = (rawVal: string | number | undefined | null): number | null => {
+    if (rawVal === undefined || rawVal === null) return null;
+    const s = String(rawVal).trim().toLowerCase();
+    if (!s) return null;
+    const hasMs = s.includes('ms');
+    const numStr = s.replace(/ms|us/g, '').trim();
+    const num = parseFloat(numStr);
+    if (isNaN(num)) return null;
+    // If explicitly 'ms' or small floating number (0.5 <= num <= 5.0), treat as milliseconds
+    if (hasMs || (num >= 0.5 && num <= 5.0)) {
+      return Math.round(num * 1000);
+    }
+    return Math.round(num);
+  };
+
   // Helper to parse input/feedback and keep manual servo pulse testing sliders visually in sync with serial commands
   const parseAndSyncMotors = (rawText: string) => {
     if (!rawText) return;
     const text = rawText.toUpperCase();
 
-    // Check for M1 <us>
-    const m1Match = text.match(/M1\s*[:=]?\s*(\d+)/);
+    // Check for M1 <val>
+    const m1Match = text.match(/M1\s*[:=]?\s*([0-9.]+(?:\s*(?:ms|us))?)/i);
     if (m1Match) {
-      const val = parseInt(m1Match[1], 10);
-      if (val >= 1000 && val <= 3000) {
+      const val = parsePulseInput(m1Match[1]);
+      if (val !== null && val >= 1000 && val <= 3000) {
         setTestM1(Math.max(1500, Math.min(2500, val)));
       }
     }
 
-    // Check for M2 <us> (min 1600, max 3000)
-    const m2Match = text.match(/M2\s*[:=]?\s*(\d+)/);
+    // Check for M2 / BASE / YAW <val> (min 1600, max 3000)
+    const m2Match = text.match(/(?:M2|BASE|YAW)\s*[:=]?\s*([0-9.]+(?:\s*(?:ms|us))?)/i);
     if (m2Match) {
-      const val = parseInt(m2Match[1], 10);
-      if (val >= 1000 && val <= 3500) {
+      const val = parsePulseInput(m2Match[1]);
+      if (val !== null && val >= 1000 && val <= 3500) {
         setTestM2(Math.max(1600, Math.min(3000, val)));
       }
     }
 
-    // Check for M3 <us>
-    const m3Match = text.match(/M3\s*[:=]?\s*(\d+)/);
+    // Check for M3 <val>
+    const m3Match = text.match(/M3\s*[:=]?\s*([0-9.]+(?:\s*(?:ms|us))?)/i);
     if (m3Match) {
-      const val = parseInt(m3Match[1], 10);
-      if (val >= 1000 && val <= 3000) {
+      const val = parsePulseInput(m3Match[1]);
+      if (val !== null && val >= 1000 && val <= 3000) {
         setTestM3(Math.max(1500, Math.min(2500, val)));
       }
     }
 
-    // Check for POS <m1> <m2> <m3>
-    const posMatch = text.match(/POS\s*[:=]?\s*(\d+)\s+(\d+)\s+(\d+)/);
+    // Standalone direct input like "3ms" or "3.0ms" or "3000" or "3" into terminal/input
+    const standaloneMatch = text.trim().match(/^([0-9.]+(?:\s*(?:ms|us))?)$/i);
+    if (standaloneMatch) {
+      const val = parsePulseInput(standaloneMatch[1]);
+      if (val !== null && val >= 1600 && val <= 3000) {
+        setTestM2(val);
+      }
+    }
+
+    // Check for POS <m1> <m2> <m3> (supports both ms and us, e.g. "POS 1.5ms 3ms 1.5ms" or "POS 1500 3000 1500")
+    const posMatch = text.match(/POS\s*[:=]?\s*([0-9.]+(?:ms|us)?)\s+([0-9.]+(?:ms|us)?)\s+([0-9.]+(?:ms|us)?)/i);
     if (posMatch) {
-      const v1 = parseInt(posMatch[1], 10);
-      const v2 = parseInt(posMatch[2], 10);
-      const v3 = parseInt(posMatch[3], 10);
-      if (v1 >= 1000 && v1 <= 3000) setTestM1(Math.max(1500, Math.min(2500, v1)));
-      if (v2 >= 1000 && v2 <= 3500) setTestM2(Math.max(1600, Math.min(3000, v2)));
-      if (v3 >= 1000 && v3 <= 3000) setTestM3(Math.max(1500, Math.min(2500, v3)));
+      const v1 = parsePulseInput(posMatch[1]);
+      const v2 = parsePulseInput(posMatch[2]);
+      const v3 = parsePulseInput(posMatch[3]);
+      if (v1 !== null && v1 >= 1000 && v1 <= 3000) setTestM1(Math.max(1500, Math.min(2500, v1)));
+      if (v2 !== null && v2 >= 1000 && v2 <= 3500) setTestM2(Math.max(1600, Math.min(3000, v2)));
+      if (v3 !== null && v3 >= 1000 && v3 <= 3000) setTestM3(Math.max(1500, Math.min(2500, v3)));
     }
 
     // Check for HOME
@@ -199,6 +238,16 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
     if (currentM2 >= 1600 && currentM2 <= 3000) setTestM2(currentM2);
     if (currentM3 >= 1500 && currentM3 <= 2500) setTestM3(currentM3);
   }, [currentM1, currentM2, currentM3]);
+
+  useEffect(() => {
+    setM1InputText(String(testM1));
+  }, [testM1]);
+  useEffect(() => {
+    setM2InputText(String(testM2));
+  }, [testM2]);
+  useEffect(() => {
+    setM3InputText(String(testM3));
+  }, [testM3]);
 
   // Add terminal log entry
   const appendTerminal = (type: 'tx' | 'rx' | 'sys', text: string) => {
@@ -307,11 +356,63 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
   const handleSendCustom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customCmd.trim()) return;
-    const cmd = customCmd.trim();
-    appendTerminal('tx', cmd);
-    parseAndSyncMotors(cmd);
+    const raw = customCmd.trim();
+    const upper = raw.toUpperCase();
+    if (upper === 'STAMP') {
+      setCustomCmd('');
+      handleRunSequence('STAMP');
+      return;
+    }
+    if (upper === 'PUB' || upper === 'PUT') {
+      setCustomCmd('');
+      handleRunSequence('PUB');
+      return;
+    }
+    if (upper === 'PBB') {
+      setCustomCmd('');
+      handleRunSequence('PBB');
+      return;
+    }
+
+    parseAndSyncMotors(raw);
+
+    // Normalize command to standard microseconds so physical Arduino/ESP32 receives valid pulse
+    let normalizedCmd = raw;
+    const mMatch = raw.match(/^(M[123]|BASE|YAW)\s*[:=]?\s*([0-9.]+(?:\s*(?:ms|us))?)$/i);
+    if (mMatch) {
+      const motorKey =
+        mMatch[1].toUpperCase().startsWith('B') || mMatch[1].toUpperCase().startsWith('Y')
+          ? 'M2'
+          : mMatch[1].toUpperCase();
+      const val = parsePulseInput(mMatch[2]);
+      if (val !== null) {
+        normalizedCmd = `${motorKey} ${val}`;
+      }
+    } else {
+      const standAlone = raw.match(/^([0-9.]+(?:\s*(?:ms|us))?)$/i);
+      if (standAlone) {
+        const val = parsePulseInput(standAlone[1]);
+        if (val !== null) {
+          normalizedCmd = `M2 ${val}`;
+        }
+      } else {
+        const posMatch = raw.match(
+          /^POS\s*[:=]?\s*([0-9.]+(?:ms|us)?)\s+([0-9.]+(?:ms|us)?)\s+([0-9.]+(?:ms|us)?)$/i
+        );
+        if (posMatch) {
+          const v1 = parsePulseInput(posMatch[1]);
+          const v2 = parsePulseInput(posMatch[2]);
+          const v3 = parsePulseInput(posMatch[3]);
+          if (v1 !== null && v2 !== null && v3 !== null) {
+            normalizedCmd = `POS ${v1} ${v2} ${v3}`;
+          }
+        }
+      }
+    }
+
+    appendTerminal('tx', normalizedCmd);
     if (isConnected) {
-      await serialManager.sendCommand(cmd);
+      await serialManager.sendCommand(normalizedCmd);
     }
     setCustomCmd('');
   };
@@ -358,7 +459,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Direct Web Serial controller: M1/M3 (1500–2500µs), M2 Base Yaw (1600–2600µs), integrated Word Sequencer & Live Terminal
+              Direct Web Serial controller: M1/M3 (1500–2500µs), M2 Base Yaw (1600–3000µs / 1.6–3.0ms), integrated Word Sequencer & Live Terminal
             </p>
           </div>
         </div>
@@ -680,12 +781,12 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   );
                 })()}
 
-                {/* PUB and PBB Sequence Buttons */}
+                {/* PUB / PUT, PBB, and STAMP Sequence Buttons */}
                 <div className="pt-2 border-t border-slate-800/80 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200 flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                      Sequence Controllers: PUB &amp; PBB
+                      Sequence Controllers: PUB / PUT, PBB &amp; stamp
                     </span>
                     {runningSequence && (
                       <button
@@ -697,10 +798,10 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* Button 1: PUB */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* Button 1: PUB / PUT */}
                     <div className={`p-3 rounded-xl border transition-all ${
-                      runningSequence === 'PUB'
+                      runningSequence === 'PUB' || runningSequence === 'PUT'
                         ? 'bg-purple-950/60 border-purple-500 shadow-md ring-1 ring-purple-400'
                         : 'bg-slate-900/90 border-purple-500/30 hover:border-purple-500/60'
                     }`}>
@@ -713,17 +814,17 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                             className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-sm tracking-wide rounded-lg flex items-center gap-1.5 shadow-md transition cursor-pointer"
                           >
                             <Play className="w-3.5 h-3.5 fill-current" />
-                            <span>PUB</span>
+                            <span>PUB / PUT</span>
                           </button>
                           <div>
                             <div className="text-[11px] font-bold text-purple-300">Pick Upper Bay</div>
-                            <div className="text-[9px] text-purple-400/80 font-mono">Outer Rack N–Z sequence (7 steps)</div>
+                            <div className="text-[9px] text-purple-400/80 font-mono">Outer Rack N–Z (3s pause after M1 2ms)</div>
                           </div>
                         </div>
 
-                        {runningSequence === 'PUB' && (
+                        {(runningSequence === 'PUB' || runningSequence === 'PUT') && (
                           <span className="text-[10px] font-mono text-purple-300 animate-pulse bg-purple-900/60 px-2 py-0.5 rounded border border-purple-400">
-                            Running step {sequenceStepIndex + 1}/7
+                            {sequenceStepIndex === 1 ? 'Step 2: 3s wait...' : `Step ${sequenceStepIndex + 1}/7`}
                           </span>
                         )}
                       </div>
@@ -731,8 +832,8 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                       {/* PUB Sequence Stepper Chips */}
                       <div className="flex flex-wrap gap-1 text-[10px] font-mono">
                         {PUB_SEQUENCE.map((s, idx) => {
-                          const isCurrent = runningSequence === 'PUB' && sequenceStepIndex === idx;
-                          const isDone = runningSequence === 'PUB' && sequenceStepIndex > idx;
+                          const isCurrent = (runningSequence === 'PUB' || runningSequence === 'PUT') && sequenceStepIndex === idx;
+                          const isDone = (runningSequence === 'PUB' || runningSequence === 'PUT') && sequenceStepIndex > idx;
                           return (
                             <span
                               key={idx}
@@ -743,8 +844,10 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                                   ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
                                   : 'bg-slate-950 text-slate-400 border-slate-800'
                               }`}
+                              title={s.delayMs ? `${s.label} (waits ${s.delayMs / 1000}s)` : s.label}
                             >
                               {s.label}
+                              {s.delayMs ? ' (3s)' : ''}
                             </span>
                           );
                         })}
@@ -803,6 +906,59 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                         })}
                       </div>
                     </div>
+
+                    {/* Button 3: stamp */}
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      runningSequence === 'STAMP'
+                        ? 'bg-emerald-950/60 border-emerald-500 shadow-md ring-1 ring-emerald-400'
+                        : 'bg-slate-900/90 border-emerald-500/30 hover:border-emerald-500/60'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={Boolean(runningSequence)}
+                            onClick={() => handleRunSequence('STAMP')}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-sm tracking-wide rounded-lg flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>stamp</span>
+                          </button>
+                          <div>
+                            <div className="text-[11px] font-bold text-emerald-300">stamp sequence</div>
+                            <div className="text-[9px] text-emerald-400/80 font-mono">M2 1.6ms &rarr; M3 1.785ms &rarr; M1 2ms &rarr; 1.5ms</div>
+                          </div>
+                        </div>
+
+                        {runningSequence === 'STAMP' && (
+                          <span className="text-[10px] font-mono text-emerald-300 animate-pulse bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-400">
+                            Running step {sequenceStepIndex + 1}/4
+                          </span>
+                        )}
+                      </div>
+
+                      {/* stamp Sequence Stepper Chips */}
+                      <div className="flex flex-wrap gap-1 text-[10px] font-mono">
+                        {STAMP_SEQUENCE.map((s, idx) => {
+                          const isCurrent = runningSequence === 'STAMP' && sequenceStepIndex === idx;
+                          const isDone = runningSequence === 'STAMP' && sequenceStepIndex > idx;
+                          return (
+                            <span
+                              key={idx}
+                              className={`px-1.5 py-0.5 rounded border ${
+                                isCurrent
+                                  ? 'bg-emerald-500 text-white font-bold border-emerald-300 ring-1 ring-emerald-400 animate-pulse'
+                                  : isDone
+                                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                  : 'bg-slate-950 text-slate-400 border-slate-800'
+                              }`}
+                            >
+                              {s.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -831,55 +987,68 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </p>
                 </div>
 
-                {/* Quick Actions (Home Arm, E-Stop, PUB, PBB) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {/* Quick Actions (Home Arm, E-Stop, PUB/PUT, PBB, stamp) */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                   <button
                     onClick={handleHomeArm}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer"
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer"
                     title="Home Arm: M1 1500µs, M2 2100µs, M3 1500µs"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
+                    <RotateCcw className="w-3 h-3 text-sky-400" />
                     <div className="flex flex-col items-start leading-tight">
-                      <span>Home Arm</span>
-                      <span className="text-[8px] text-sky-400/80 font-mono">1500/2100/1500</span>
+                      <span>Home</span>
+                      <span className="text-[7px] text-sky-400/80 font-mono">1500/2100/1500</span>
                     </div>
                   </button>
 
                   <button
                     onClick={handleEmergencyStop}
-                    className="p-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer"
+                    className="p-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 rounded-lg flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer"
                     title="Detaches all servos immediately"
                   >
-                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                    <ShieldAlert className="w-3 h-3 text-rose-400" />
                     <div className="flex flex-col items-start leading-tight">
                       <span>E-STOP</span>
-                      <span className="text-[8px] text-rose-400/80 font-mono">Detach Servos</span>
+                      <span className="text-[7px] text-rose-400/80 font-mono">Detach</span>
                     </div>
                   </button>
 
                   <button
                     disabled={Boolean(runningSequence)}
                     onClick={() => handleRunSequence('PUB')}
-                    className="p-2 bg-purple-950/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/40 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
-                    title="Run PUB sequence (Pick Upper Bay)"
+                    className="p-1.5 bg-purple-950/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/40 rounded-lg flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer disabled:opacity-50"
+                    title="Run PUB / PUT sequence (Pick Upper Bay, 3s delay)"
                   >
-                    <Play className="w-3.5 h-3.5 text-purple-400 fill-current" />
+                    <Play className="w-3 h-3 text-purple-400 fill-current" />
                     <div className="flex flex-col items-start leading-tight">
-                      <span className="font-bold">PUB</span>
-                      <span className="text-[8px] text-purple-400/80 font-mono">Upper (7 steps)</span>
+                      <span className="font-bold">PUB/PUT</span>
+                      <span className="text-[7px] text-purple-400/80 font-mono">Upper (7 steps)</span>
                     </div>
                   </button>
 
                   <button
                     disabled={Boolean(runningSequence)}
                     onClick={() => handleRunSequence('PBB')}
-                    className="p-2 bg-sky-950/50 hover:bg-sky-900/60 text-sky-200 border border-sky-500/40 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                    className="p-1.5 bg-sky-950/50 hover:bg-sky-900/60 text-sky-200 border border-sky-500/40 rounded-lg flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer disabled:opacity-50"
                     title="Run PBB sequence (Pick Bottom Bay)"
                   >
-                    <Play className="w-3.5 h-3.5 text-sky-400 fill-current" />
+                    <Play className="w-3 h-3 text-sky-400 fill-current" />
                     <div className="flex flex-col items-start leading-tight">
                       <span className="font-bold">PBB</span>
-                      <span className="text-[8px] text-sky-400/80 font-mono">Bottom (4 steps)</span>
+                      <span className="text-[7px] text-sky-400/80 font-mono">Bottom (4 steps)</span>
+                    </div>
+                  </button>
+
+                  <button
+                    disabled={Boolean(runningSequence)}
+                    onClick={() => handleRunSequence('STAMP')}
+                    className="p-1.5 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 rounded-lg flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer disabled:opacity-50"
+                    title="Run stamp sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> M1 1.500ms"
+                  >
+                    <Play className="w-3 h-3 text-emerald-400 fill-current" />
+                    <div className="flex flex-col items-start leading-tight">
+                      <span className="font-bold">stamp</span>
+                      <span className="text-[7px] text-emerald-400/80 font-mono">Stamp (4 steps)</span>
                     </div>
                   </button>
                 </div>
@@ -893,11 +1062,30 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
 
                   {/* Motor 1: Shoulder Elevation */}
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[11px]">
+                    <div className="flex justify-between items-center text-[11px]">
                       <span className="text-emerald-300 font-medium">M1 (Shoulder θ₁)</span>
-                      <span className="font-mono text-slate-200 font-bold">
-                        {testM1} µs ({(testM1 / 1000).toFixed(2)} ms) &bull; {(((testM1 - 1500) * 90) / 1000).toFixed(1)}°
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={m1InputText}
+                          onChange={(e) => {
+                            const txt = e.target.value;
+                            setM1InputText(txt);
+                            const parsed = parsePulseInput(txt);
+                            if (parsed !== null && parsed >= 1500 && parsed <= 2500) {
+                              setTestM1(parsed);
+                              handleSendSingleMotor(1, parsed);
+                            }
+                          }}
+                          onBlur={() => setM1InputText(String(testM1))}
+                          placeholder="1500"
+                          title="Direct input: e.g. 1500, 1.5ms, 2000, 2ms"
+                          className="w-16 px-1.5 py-0.5 bg-slate-900 border border-slate-700 focus:border-emerald-400 text-emerald-300 font-mono font-bold text-right rounded text-xs focus:outline-hidden"
+                        />
+                        <span className="font-mono text-slate-200 font-bold">
+                          µs ({(testM1 / 1000).toFixed(2)} ms) &bull; {(((testM1 - 1500) * 90) / 1000).toFixed(1)}°
+                        </span>
+                      </div>
                     </div>
                     <input
                       type="range"
@@ -927,11 +1115,33 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
 
                   {/* Motor 2: Base Yaw (min 1600us, max 3000us, center 2100us) */}
                   <div className="space-y-1 pt-2 border-t border-slate-900">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-amber-300 font-medium">M2 (Base Yaw θ₀)</span>
-                      <span className="font-mono text-slate-200 font-bold">
-                        {testM2} µs ({(testM2 / 1000).toFixed(2)} ms) &bull; {(((testM2 - 2100) * 45) / 500).toFixed(1)}°
-                      </span>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-amber-300 font-medium">M2 (Base Yaw θ₀)</span>
+                        <span className="text-[9px] text-amber-500/80 font-mono">[1600–3000µs]</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={m2InputText}
+                          onChange={(e) => {
+                            const txt = e.target.value;
+                            setM2InputText(txt);
+                            const parsed = parsePulseInput(txt);
+                            if (parsed !== null && parsed >= 1600 && parsed <= 3000) {
+                              setTestM2(parsed);
+                              handleSendSingleMotor(2, parsed);
+                            }
+                          }}
+                          onBlur={() => setM2InputText(String(testM2))}
+                          placeholder="3ms / 3000"
+                          title="Direct input: e.g. 3ms, 3.0ms, 3000, 2100, 1.75ms (Range: 1600us to 3000us)"
+                          className="w-20 px-1.5 py-0.5 bg-slate-900 border border-slate-700 focus:border-amber-400 text-amber-300 font-mono font-bold text-right rounded text-xs focus:outline-hidden"
+                        />
+                        <span className="font-mono text-slate-200 font-bold">
+                          µs ({(testM2 / 1000).toFixed(2)} ms) &bull; {(((testM2 - 2100) * 45) / 500).toFixed(1)}°
+                        </span>
+                      </div>
                     </div>
                     <input
                       type="range"
@@ -967,11 +1177,30 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
 
                   {/* Motor 3: Elbow Elevation */}
                   <div className="space-y-1 pt-2 border-t border-slate-900">
-                    <div className="flex justify-between text-[11px]">
+                    <div className="flex justify-between items-center text-[11px]">
                       <span className="text-sky-300 font-medium">M3 (Elbow θ₂)</span>
-                      <span className="font-mono text-slate-200 font-bold">
-                        {testM3} µs ({(testM3 / 1000).toFixed(2)} ms) &bull; {(((testM3 - 1500) * 90) / 1000).toFixed(1)}°
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={m3InputText}
+                          onChange={(e) => {
+                            const txt = e.target.value;
+                            setM3InputText(txt);
+                            const parsed = parsePulseInput(txt);
+                            if (parsed !== null && parsed >= 1500 && parsed <= 2500) {
+                              setTestM3(parsed);
+                              handleSendSingleMotor(3, parsed);
+                            }
+                          }}
+                          onBlur={() => setM3InputText(String(testM3))}
+                          placeholder="1500"
+                          title="Direct input: e.g. 1500, 1.5ms, 2000, 2ms"
+                          className="w-16 px-1.5 py-0.5 bg-slate-900 border border-slate-700 focus:border-sky-400 text-sky-300 font-mono font-bold text-right rounded text-xs focus:outline-hidden"
+                        />
+                        <span className="font-mono text-slate-200 font-bold">
+                          µs ({(testM3 / 1000).toFixed(2)} ms) &bull; {(((testM3 - 1500) * 90) / 1000).toFixed(1)}°
+                        </span>
+                      </div>
                     </div>
                     <input
                       type="range"
@@ -1129,7 +1358,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   <li>Ground: Common GND (-)</li>
                   <li>Min: 1600 µs (-45° Left)</li>
                   <li>Center: 2100 µs (0° Forward)</li>
-                  <li>Max: 2600 µs (+45° Right)</li>
+                  <li>Max: 3000 µs (+81° Right / 3.0ms)</li>
                 </ul>
               </div>
 
@@ -1225,15 +1454,15 @@ const FIRMWARE_SOURCE = `#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32)
 
 Servo servo1, servo2, servo3;
 // M1 Shoulder & M3 Elbow: 1500us (0 deg) to 2500us (+90 deg)
-// M2 Base Yaw: Min 1600us (-45 deg), Center 2100us (0 deg), Max 2600us (+45 deg)
+// M2 Base Yaw: Min 1600us (-45 deg), Center 2100us (0 deg), Max 3000us (+81 deg / 3.0ms)
 const int M1_HOME_US = 1500;
-const int M2_HOME_US = 2100; // Center Base Yaw (min 1600, max 2600)
+const int M2_HOME_US = 2100; // Center Base Yaw (min 1600, max 3000)
 const int M3_HOME_US = 1500;
 
 void setup() {
   Serial.begin(115200);
   servo1.attach(PIN_M1, 1000, 2600);
-  servo2.attach(PIN_M2, 1000, 2700); // Attach with headroom for 1600-2600us
+  servo2.attach(PIN_M2, 1000, 3100); // Attach with headroom for 1600-3000us (3.0ms)
   servo3.attach(PIN_M3, 1000, 2600);
   setHome();
 }
@@ -1258,6 +1487,33 @@ void loop() {
     cmd.trim();
     if (cmd == "HOME") setHome();
     else if (cmd == "ZERO") setZero();
+    else if (cmd == "STAMP") {
+      // STAMP sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> M1 1.500ms
+      servo2.writeMicroseconds(1600); delay(600);
+      servo3.writeMicroseconds(1785); delay(600);
+      servo1.writeMicroseconds(2000); delay(600);
+      servo1.writeMicroseconds(1500);
+      Serial.println("OK: STAMP sequence complete");
+    }
+    else if (cmd == "PUB" || cmd == "PUT") {
+      // PUB / PUT sequence: 3s pause between M1 2ms and M3 1.8ms
+      servo3.writeMicroseconds(1670); delay(600);
+      servo1.writeMicroseconds(2000); delay(3000); // 3 seconds wait
+      servo3.writeMicroseconds(1800); delay(600);
+      servo1.writeMicroseconds(1900); delay(600);
+      servo3.writeMicroseconds(1750); delay(600);
+      servo1.writeMicroseconds(1800); delay(600);
+      servo3.writeMicroseconds(1850);
+      Serial.println("OK: PUB/PUT sequence complete");
+    }
+    else if (cmd == "PBB") {
+      // PBB sequence: M3 1.89ms -> M1 1.76ms -> M3 1.5ms -> M1 2ms
+      servo3.writeMicroseconds(1890); delay(600);
+      servo1.writeMicroseconds(1760); delay(600);
+      servo3.writeMicroseconds(1500); delay(600);
+      servo1.writeMicroseconds(2000);
+      Serial.println("OK: PBB sequence complete");
+    }
     else if (cmd.startsWith("M1 ")) servo1.writeMicroseconds(cmd.substring(3).toInt());
     else if (cmd.startsWith("M2 ")) servo2.writeMicroseconds(cmd.substring(3).toInt());
     else if (cmd.startsWith("M3 ")) servo3.writeMicroseconds(cmd.substring(3).toInt());

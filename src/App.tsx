@@ -555,7 +555,7 @@ export default function App() {
     if (serialManager.getIsConnected()) {
       serialManager.homeArm(1500, 2100, 1500);
     }
-    // Neutral forward posture: base yaw = 0 deg (M2=2100us, min=1600us, max=2600us), shoulder = 0 deg (M1=1500us), elbow = 0 deg (M3=1500us)
+    // Neutral forward posture: base yaw = 0 deg (M2=2100us, min=1600us, max=3000us / 3.0ms), shoulder = 0 deg (M1=1500us), elbow = 0 deg (M3=1500us)
     // x = 0, y = 240mm (L2 + L3), z = 100mm (L1)
     moveToPosition3D(HOME_POSITION_3D.x, HOME_POSITION_3D.y, HOME_POSITION_3D.z, 'RETURN_HOME');
   };

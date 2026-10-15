@@ -22,7 +22,7 @@ export interface JointAngles3DOF {
   shoulderRad: number;
   elbowRad: number;
   m1_us: number;         // microsecond PWM: Motor 1 = Shoulder [1500, 2500]
-  m2_us: number;         // microsecond PWM: Motor 2 = Base Yaw [1600, 2600]
+  m2_us: number;         // microsecond PWM: Motor 2 = Base Yaw [1600, 3000] (1.6ms to 3.0ms)
   m3_us: number;         // microsecond PWM: Motor 3 = Elbow [1500, 2500]
 }
 

@@ -33,7 +33,7 @@ export const TAG_SIZE_MM = 50;
 
 // Zero & Home posture pulse values:
 // Motor 1 (Shoulder): 1500 us (0 deg) to 2500 us (+90 deg)
-// Motor 2 (Base Yaw): Min is 1600 us (-45 deg), Center is 2100 us (0 deg), Max is 2600 us (+45 deg)
+// Motor 2 (Base Yaw): Min is 1600 us (-45 deg), Center is 2100 us (0 deg), Max is 3000 us (+81 deg / 3.0ms)
 // Motor 3 (Elbow):    1500 us (0 deg) to 2500 us (+90 deg)
 export const ZERO_MOTOR_PULSE_US = 1500;
 export const HOME_MOTOR_PULSE_US = 2500;
@@ -120,17 +120,18 @@ export const LETTER_BASE_YAW_MAP: Record<string, number> = {
   A: 2425,
 };
 
-// Sequences for PUB (Pick Upper Bay) and PBB (Pick Bottom Bay)
+// Sequences for PUB (Pick Upper Bay / PUT), PBB (Pick Bottom Bay), and STAMP (Stamping Motion)
 export interface SequenceStep {
   motor: 'M1' | 'M2' | 'M3';
   pulseUs: number;
   pulseMs: number;
   label: string;
+  delayMs?: number; // Optional custom pause/delay after this step (ms)
 }
 
 export const PUB_SEQUENCE: SequenceStep[] = [
   { motor: 'M3', pulseUs: 1670, pulseMs: 1.67, label: 'M3 1.67ms' },
-  { motor: 'M1', pulseUs: 2000, pulseMs: 2.0,  label: 'M1 2ms' },
+  { motor: 'M1', pulseUs: 2000, pulseMs: 2.0,  label: 'M1 2ms', delayMs: 3000 }, // Wait 3 seconds between M1 2ms and M3 1.8ms
   { motor: 'M3', pulseUs: 1800, pulseMs: 1.8,  label: 'M3 1.8ms' },
   { motor: 'M1', pulseUs: 1900, pulseMs: 1.9,  label: 'M1 1.9ms' },
   { motor: 'M3', pulseUs: 1750, pulseMs: 1.75, label: 'M3 1.75ms' },
@@ -138,11 +139,21 @@ export const PUB_SEQUENCE: SequenceStep[] = [
   { motor: 'M3', pulseUs: 1850, pulseMs: 1.85, label: 'M3 1.85ms' },
 ];
 
+export const PUT_SEQUENCE = PUB_SEQUENCE; // Alias for PUT command
+
 export const PBB_SEQUENCE: SequenceStep[] = [
   { motor: 'M3', pulseUs: 1890, pulseMs: 1.89, label: 'M3 1.89ms' },
   { motor: 'M1', pulseUs: 1760, pulseMs: 1.76, label: 'M1 1.76ms' },
   { motor: 'M3', pulseUs: 1500, pulseMs: 1.5,  label: 'M3 1.5ms' },
   { motor: 'M1', pulseUs: 2000, pulseMs: 2.0,  label: 'M1 2ms' },
+];
+
+// STAMP sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> M1 1.500ms
+export const STAMP_SEQUENCE: SequenceStep[] = [
+  { motor: 'M2', pulseUs: 1600, pulseMs: 1.600, label: 'M2 1.600ms' },
+  { motor: 'M3', pulseUs: 1785, pulseMs: 1.785, label: 'M3 1.785ms' },
+  { motor: 'M1', pulseUs: 2000, pulseMs: 2.000, label: 'M1 2.000ms' },
+  { motor: 'M1', pulseUs: 1500, pulseMs: 1.500, label: 'M1 1.500ms' },
 ];
 
 // Deprecated constants kept for backwards compatibility
@@ -250,7 +261,7 @@ export function solve3DOF_IK(
         shoulderRad: 0,
         elbowRad: 0,
         m1_us: ZERO_M1_SHOULDER_US, // Motor 1 = Shoulder (1500us)
-        m2_us: Math.round(Math.max(MIN_BASE_YAW_US, Math.min(MAX_BASE_YAW_US, ZERO_M2_BASE_US + (base_deg / 45) * 500))), // Motor 2 = Base (2100us at 0 deg, 1600us to 2600us)
+        m2_us: Math.round(Math.max(MIN_BASE_YAW_US, Math.min(MAX_BASE_YAW_US, ZERO_M2_BASE_US + (base_deg / 45) * 500))), // Motor 2 = Base (2100us at 0 deg, 1600us to 3000us / 3.0ms)
         m3_us: ZERO_M3_ELBOW_US, // Motor 3 = Elbow (1500us)
       };
     }
@@ -272,7 +283,7 @@ export function solve3DOF_IK(
 
   // Real-life arm motor mapping (Shoulder and Base are flipped):
   // Motor 1 (M1) = Shoulder (theta1 / ssh): 0 to 90 deg -> 1500 to 2500 us
-  // Motor 2 (M2) = Base Yaw (theta0 / s0): 0 deg is 2100us, min base yaw is 1600us (-45 deg), max base yaw is 2600us (+45 deg)
+  // Motor 2 (M2) = Base Yaw (theta0 / s0): 0 deg is 2100us, min base yaw is 1600us (-45 deg), max base yaw is 3000us (+81 deg / 3.0ms)
   // Motor 3 (M3) = Elbow (theta2 / sel): 0 to 90 deg -> 1500 to 2500 us
   const m1_shoulder_us = mapAngleToUs(Math.abs(shoulder_deg), 0, 90, 1500, 2500);
   const m2_base_us = Math.round(Math.max(MIN_BASE_YAW_US, Math.min(MAX_BASE_YAW_US, ZERO_M2_BASE_US + (base_deg / 45) * 500)));
@@ -308,8 +319,8 @@ export function mapAngleToUs(
 }
 
 /**
- * Linear mapping for Base Yaw angle (-45 deg to +45 deg)
- * Min Base Yaw is 1600 us (-45 deg), Center is 2100 us (0 deg), Max Base Yaw is 2600 us (+45 deg)
+ * Linear mapping for Base Yaw angle (-45 deg to +81 deg)
+ * Min Base Yaw is 1600 us (-45 deg), Center is 2100 us (0 deg), Max Base Yaw is 3000 us (+81 deg / 3.0ms)
  */
 export function mapBaseYawToUs(baseDeg: number): number {
   const us = Math.round(ZERO_M2_BASE_US + (baseDeg / 45) * 500);

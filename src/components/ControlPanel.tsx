@@ -4,7 +4,9 @@ import {
   ALPHABET_26,
   getStampRackCalibration,
   PUB_SEQUENCE,
+  PUT_SEQUENCE,
   PBB_SEQUENCE,
+  STAMP_SEQUENCE,
   LETTER_BASE_YAW_MAP,
 } from '../utils/kinematics';
 import { serialManager } from '../utils/serial';
@@ -82,7 +84,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const [wordInput, setWordInput] = useState('ROBOT');
   const [activeTab, setActiveTab] = useState<'word' | 'manual'>('word');
-  const [runningSeq, setRunningSeq] = useState<'PUB' | 'PBB' | null>(null);
+  const [runningSeq, setRunningSeq] = useState<'PUB' | 'PUT' | 'PBB' | 'STAMP' | null>(null);
   const [seqStepIdx, setSeqStepIdx] = useState<number>(0);
   const isDark = theme !== 'light';
 
@@ -92,9 +94,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     onRunWordSequence(wordInput.trim().toUpperCase());
   };
 
-  const handleRunSeq = async (seqType: 'PUB' | 'PBB') => {
+  const handleRunSeq = async (seqType: 'PUB' | 'PUT' | 'PBB' | 'STAMP') => {
     if (runningSeq || isAnimating) return;
-    const seq = seqType === 'PUB' ? PUB_SEQUENCE : PBB_SEQUENCE;
+    let seq = PUB_SEQUENCE;
+    if (seqType === 'PBB') seq = PBB_SEQUENCE;
+    if (seqType === 'STAMP') seq = STAMP_SEQUENCE;
+
     setRunningSeq(seqType);
     setSeqStepIdx(0);
 
@@ -106,7 +111,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         if (serialManager.getIsConnected()) {
           await serialManager.sendCommand(cmd);
         }
-        await new Promise((res) => setTimeout(res, 600));
+        // Custom delay (e.g. 3000ms / 3s between M1 2ms and M3 1.8ms in PUB/PUT) or standard 600ms
+        const delay = step.delayMs ?? 600;
+        await new Promise((res) => setTimeout(res, delay));
       }
     } finally {
       setRunningSeq(null);
@@ -282,28 +289,39 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 );
               })()}
 
-              {/* Sequence Buttons: PUB & PBB */}
-              <div className="pt-1.5 border-t border-slate-800/80 flex gap-2">
+              {/* Sequence Buttons: PUB / PUT, PBB, and STAMP */}
+              <div className="pt-1.5 border-t border-slate-800/80 grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
                   disabled={Boolean(runningSeq) || isAnimating}
                   onClick={() => handleRunSeq('PUB')}
-                  className="flex-1 py-1.5 px-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
-                  title="PUB: M3 1.67ms -> M1 2ms -> M3 1.8ms -> M1 1.9ms -> M3 1.75ms -> M1 1.8ms -> M3 1.85ms"
+                  className="py-1.5 px-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
+                  title="PUB / PUT: M3 1.67ms -> M1 2ms -> (3s pause) -> M3 1.8ms -> M1 1.9ms -> M3 1.75ms -> M1 1.8ms -> M3 1.85ms"
                 >
-                  <Play className="w-3 h-3 fill-current" />
-                  <span>{runningSeq === 'PUB' ? `PUB (${seqStepIdx + 1}/7)` : 'PUB (Upper Bay)'}</span>
+                  <Play className="w-2.5 h-2.5 fill-current" />
+                  <span>{runningSeq === 'PUB' || runningSeq === 'PUT' ? `PUB (${seqStepIdx + 1}/7)` : 'PUB / PUT'}</span>
                 </button>
 
                 <button
                   type="button"
                   disabled={Boolean(runningSeq) || isAnimating}
                   onClick={() => handleRunSeq('PBB')}
-                  className="flex-1 py-1.5 px-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
+                  className="py-1.5 px-1 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
                   title="PBB: M3 1.89ms -> M1 1.76ms -> M3 1.5ms -> M1 2ms"
                 >
-                  <Play className="w-3 h-3 fill-current" />
-                  <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB (Bottom Bay)'}</span>
+                  <Play className="w-2.5 h-2.5 fill-current" />
+                  <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB (Bottom)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={Boolean(runningSeq) || isAnimating}
+                  onClick={() => handleRunSeq('STAMP')}
+                  className="py-1.5 px-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
+                  title="stamp: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> M1 1.500ms"
+                >
+                  <Play className="w-2.5 h-2.5 fill-current" />
+                  <span>{runningSeq === 'STAMP' ? `stamp (${seqStepIdx + 1}/4)` : 'stamp'}</span>
                 </button>
               </div>
             </div>
@@ -367,7 +385,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <span className="text-[10px] text-slate-400 font-mono">3-DOF Polar</span>
               </div>
 
-              {/* 1. Rotate Base (ϕ / θ₀) - Min 1600µs, Center 0° is 2100µs, Max 2600µs (+/-45°) */}
+              {/* 1. Rotate Base (ϕ / θ₀) - Min 1600µs (1.6ms), Center 0° is 2100µs (2.1ms), Max 3000µs (3.0ms) */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px]">
                   <span className="text-slate-300 font-medium flex items-center gap-1">
@@ -377,23 +395,41 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <span className="font-mono text-amber-300 font-semibold">
                     {manualThetaDeg.toFixed(1)}° &bull;{' '}
                     <span className="text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded text-[10px]">
-                      {Math.round(Math.max(1600, Math.min(2600, 2100 + (manualThetaDeg / 45) * 500)))} µs
+                      {(Math.round(Math.max(1600, Math.min(3000, 2100 + (manualThetaDeg / 45) * 500))) / 1000).toFixed(2)} ms ({Math.round(Math.max(1600, Math.min(3000, 2100 + (manualThetaDeg / 45) * 500)))} µs)
                     </span>
                   </span>
                 </div>
                 <input
                   type="range"
                   min="-45"
-                  max="45"
+                  max="81"
                   step="1"
-                  value={Math.max(-45, Math.min(45, manualThetaDeg))}
+                  value={Math.max(-45, Math.min(81, manualThetaDeg))}
                   onChange={(e) => onJogPolar(Number(e.target.value), manualReachMm)}
                   className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                  <span>-45° (1600µs Min)</span>
-                  <span>0° (2100µs Center)</span>
-                  <span>+45° (2600µs Max)</span>
+                  <button
+                    type="button"
+                    onClick={() => onJogPolar(-45, manualReachMm)}
+                    className="hover:text-amber-300 cursor-pointer"
+                  >
+                    -45° (1.6ms Min)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onJogPolar(0, manualReachMm)}
+                    className="hover:text-amber-300 cursor-pointer"
+                  >
+                    0° (2.1ms Center)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onJogPolar(81, manualReachMm)}
+                    className="hover:text-amber-300 cursor-pointer font-bold text-amber-400"
+                  >
+                    +81° (3.0ms / 3000µs Max)
+                  </button>
                 </div>
               </div>
 

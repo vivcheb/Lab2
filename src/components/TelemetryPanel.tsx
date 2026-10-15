@@ -125,12 +125,12 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px]">
               Base Min (1600µs / -45°)
             </span>
-          ) : angles3DOF.m2_us >= 2600 ? (
+          ) : angles3DOF.m2_us >= 3000 ? (
             <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px]">
-              Base Max (2600µs / +45°)
+              Base Max (3000µs / 3.0ms / +81°)
             </span>
           ) : (
-            <span className="text-[10px] text-slate-400">Base Yaw: 1600–2600µs</span>
+            <span className="text-[10px] text-slate-400">Base Yaw: 1600–3000µs (1.6ms–3.0ms)</span>
           )}
         </div>
 

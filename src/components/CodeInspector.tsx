@@ -201,9 +201,10 @@ end
 function moveToPosition(s, x, y, z)
     [base_deg, shoulder_deg, elbow_deg] = solve3DOF_IK(x, y, z);
     
-    % Map joint angles to microsecond pulse widths [1500, 2500] (0 deg = 1500us, +90 deg = 2500us)
-    m1_us = mapAngleToUs(abs(base_deg),     0, 90, 1500, 2500);
-    m2_us = mapAngleToUs(abs(shoulder_deg), 0, 90, 1500, 2500);
+    % Motor mapping: M1 = Shoulder (theta1), M2 = Base Yaw (theta0), M3 = Elbow (theta2)
+    m1_us = mapAngleToUs(abs(shoulder_deg), 0, 90, 1500, 2500);
+    m2_us = round(2100 + (base_deg / 45) * 500); % Base yaw: 1600us to 3000us (Center 2100us)
+    m2_us = max(1600, min(3000, m2_us));
     m3_us = mapAngleToUs(abs(elbow_deg),    0, 90, 1500, 2500);
     
     % Write plain-text Serial string expected by Arduino loop()
@@ -288,7 +289,7 @@ end`;
 // =========================================================================
 // Plain-text ASCII string format:
 //   M1 <PWM_us>  (Shoulder Servo, range [1500, 2500] us)
-//   M2 <PWM_us>  (Base Yaw Servo, range [1600, 2600] us)
+//   M2 <PWM_us>  (Base Yaw Servo, range [1600, 3000] us / 1.6–3.0ms)
 //   M3 <PWM_us>  (Elbow Servo,    range [1500, 2500] us)
 
 [00:00.00] CONNECTED: COM3 @ 115200 baud (ESP32-S3 Terminator: LF)
