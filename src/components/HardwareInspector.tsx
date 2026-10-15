@@ -116,44 +116,24 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
         setSequenceStepIndex(i);
         const step = seq[i];
 
-        // Slower movements for PBB via multi-step interpolation (24 sub-steps x 85ms = ~2.04 seconds per smooth transition)
-        if (seqType === 'PBB') {
-          const startVal =
-            step.motor === 'M1' ? testM1 : step.motor === 'M2' ? testM2 : testM3;
-          const targetVal = step.pulseUs;
-          const numSubSteps = 24;
-          const subStepDelay = 85; // 24 * 85ms = ~2040ms smooth, slow physical transition
+        if (step.motor === 'M1') setTestM1(step.pulseUs);
+        if (step.motor === 'M2') setTestM2(step.pulseUs);
+        if (step.motor === 'M3') setTestM3(step.pulseUs);
 
-          appendTerminal('tx', `[PBB Step ${i + 1}/${seq.length}] Moving ${step.motor} slowly to ${step.pulseUs}µs (${step.label})`);
-          addLog(`[PBB Step ${i + 1}/${seq.length}] Moving ${step.motor} slowly to ${step.pulseUs}µs (slow movement)...`, 'info');
-
-          for (let s = 1; s <= numSubSteps; s++) {
-            if (abortSequenceRef.current) break;
-            const subPulse = Math.round(startVal + ((targetVal - startVal) * s) / numSubSteps);
-            if (step.motor === 'M1') setTestM1(subPulse);
-            if (step.motor === 'M2') setTestM2(subPulse);
-            if (step.motor === 'M3') setTestM3(subPulse);
-            if (isConnected) {
-              await serialManager.sendCommand(`${step.motor} ${subPulse}`);
-            }
-            await new Promise((res) => setTimeout(res, subStepDelay));
-          }
-        } else {
-          if (step.motor === 'M1') setTestM1(step.pulseUs);
-          if (step.motor === 'M2') setTestM2(step.pulseUs);
-          if (step.motor === 'M3') setTestM3(step.pulseUs);
-
-          const cmd = `${step.motor} ${step.pulseUs}`;
-          appendTerminal('tx', `[${seqType} Step ${i + 1}/${seq.length}] ${cmd} (${step.label})`);
-          if (isConnected) {
-            await serialManager.sendCommand(cmd);
-          }
-          addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
+        const cmd = `${step.motor} ${step.pulseUs}`;
+        appendTerminal('tx', `[${seqType} Step ${i + 1}/${seq.length}] ${cmd} (${step.label})`);
+        if (isConnected) {
+          await serialManager.sendCommand(cmd);
         }
+        addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
 
         // Custom delay or default 600ms
         const delay = step.delayMs ?? 600;
-        if (seqType === 'STAMP' && i === 2) {
+        if (seqType === 'PBB') {
+          // Explicit 2-second wait between each command for PBB (no intermediate values)
+          appendTerminal('sys', `[PBB Step ${i + 1}/${seq.length}: Waiting 2 seconds (2000ms) before next command...]`);
+          addLog(`[PBB Step ${i + 1}] Executed ${cmd} — waiting 2 seconds before next command...`, 'info');
+        } else if (seqType === 'STAMP' && i === 2) {
           // Explicit 2-second wait between M1 2.000ms and M1 1.500ms
           appendTerminal('sys', `[STAMP Step 3: Waiting 2 seconds (2000ms) between M1 2.000ms and M1 1.500ms...]`);
           addLog(`[STAMP] Waiting 2 seconds between M1 2.000ms and M1 1.500ms before retracting...`, 'info');
@@ -938,14 +918,14 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                             <span>PBB</span>
                           </button>
                           <div>
-                            <div className="text-[11px] font-bold text-sky-300">Pick Bottom Bay (Slow)</div>
-                            <div className="text-[9px] text-sky-400/80 font-mono">Slow, gentle 4-step sequence (2.0s smooth transitions)</div>
+                            <div className="text-[11px] font-bold text-sky-300">PBB Sequence (Direct Values)</div>
+                            <div className="text-[9px] text-sky-400/80 font-mono">M3 1890 &rarr; M1 1760 &rarr; M3 1.5 &rarr; M1 2 (wait 2s between each)</div>
                           </div>
                         </div>
 
                         {runningSequence === 'PBB' && (
                           <span className="text-[10px] font-mono text-sky-300 animate-pulse bg-sky-900/60 px-2 py-0.5 rounded border border-sky-400">
-                            Slow step {sequenceStepIndex + 1}/4
+                            Step {sequenceStepIndex + 1}/4 (2s wait)
                           </span>
                         )}
                       </div>
@@ -965,8 +945,9 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                                   ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
                                   : 'bg-slate-950 text-slate-400 border-slate-800'
                               }`}
+                              title={`${s.label} (waits 2s)`}
                             >
-                              {s.label}
+                              {s.label} (2s)
                             </span>
                           );
                         })}
@@ -1098,7 +1079,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     disabled={Boolean(runningSequence)}
                     onClick={() => handleRunSequence('PBB')}
                     className="p-1.5 bg-sky-950/50 hover:bg-sky-900/60 text-sky-200 border border-sky-500/40 rounded-lg flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer disabled:opacity-50"
-                    title="Run PBB sequence (Pick Bottom Bay)"
+                    title="Run PBB sequence: M3 1890 -> M1 1760 -> M3 1.5 -> M1 2 (wait 2s between each command)"
                   >
                     <Play className="w-3 h-3 text-sky-400 fill-current" />
                     <div className="flex flex-col items-start leading-tight">
@@ -1639,12 +1620,12 @@ void loop() {
       Serial.println("OK: PUB/PUT sequence complete");
     }
     else if (cmd == "PBB") {
-      // PBB sequence (slower movements with 1800ms duration between steps)
-      servo3.writeMicroseconds(1890); delay(1800);
-      servo1.writeMicroseconds(1760); delay(1800);
-      servo3.writeMicroseconds(1500); delay(1800);
-      servo1.writeMicroseconds(2000); delay(1800);
-      Serial.println("OK: PBB sequence complete (slow)");
+      // PBB sequence: direct values without intermediate steps, 2 seconds wait between each command
+      servo3.writeMicroseconds(1890); delay(2000);
+      servo1.writeMicroseconds(1760); delay(2000);
+      servo3.writeMicroseconds(1500); delay(2000);
+      servo1.writeMicroseconds(2000); delay(2000);
+      Serial.println("OK: PBB sequence complete (direct values, 2s wait)");
     }
     else if (cmd.startsWith("M1 ")) servo1.writeMicroseconds(cmd.substring(3).toInt());
     else if (cmd.startsWith("M2 ")) servo2.writeMicroseconds(cmd.substring(3).toInt());

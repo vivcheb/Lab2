@@ -141,11 +141,12 @@ export const PUB_SEQUENCE: SequenceStep[] = [
 
 export const PUT_SEQUENCE = PUB_SEQUENCE; // Alias for PUT command
 
+// PBB sequence: direct values without intermediate steps, 2s wait between each command
 export const PBB_SEQUENCE: SequenceStep[] = [
-  { motor: 'M3', pulseUs: 1890, pulseMs: 1.89, label: 'M3 1.89ms (Slow)', delayMs: 1800 },
-  { motor: 'M1', pulseUs: 1760, pulseMs: 1.76, label: 'M1 1.76ms (Slow)', delayMs: 1800 },
-  { motor: 'M3', pulseUs: 1500, pulseMs: 1.5,  label: 'M3 1.5ms (Slow)',  delayMs: 1800 },
-  { motor: 'M1', pulseUs: 2000, pulseMs: 2.0,  label: 'M1 2ms (Slow)',    delayMs: 1800 },
+  { motor: 'M3', pulseUs: 1890, pulseMs: 1.890, label: 'M3 1890', delayMs: 2000 }, // Wait 2s between each command
+  { motor: 'M1', pulseUs: 1760, pulseMs: 1.760, label: 'M1 1760', delayMs: 2000 },
+  { motor: 'M3', pulseUs: 1500, pulseMs: 1.500, label: 'M3 1.5', delayMs: 2000 },
+  { motor: 'M1', pulseUs: 2000, pulseMs: 2.000, label: 'M1 2', delayMs: 2000 },
 ];
 
 // STAMP sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> wait 2 seconds -> M1 1.500ms

@@ -109,21 +109,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         const step = seq[i];
         const cmd = `${step.motor} ${step.pulseUs}`;
 
-        if (seqType === 'PBB') {
-          // Send slow sub-steps for PBB (20 sub-steps with 90ms = ~1.8s smooth slow motion)
-          for (let s = 1; s <= 20; s++) {
-            if (serialManager.getIsConnected()) {
-              await serialManager.sendCommand(cmd);
-            }
-            await new Promise((res) => setTimeout(res, 90));
-          }
-        } else {
-          if (serialManager.getIsConnected()) {
-            await serialManager.sendCommand(cmd);
-          }
+        if (serialManager.getIsConnected()) {
+          await serialManager.sendCommand(cmd);
         }
 
-        // Custom delay (1800ms for slow PBB, 2000ms for STAMP hold, 3000ms for PUB/PUT wait)
+        // Custom delay (2000ms for PBB 2s wait between commands, 2000ms for STAMP hold, 3000ms for PUB/PUT wait)
         const delay = step.delayMs ?? 600;
         await new Promise((res) => setTimeout(res, delay));
       }
@@ -319,10 +309,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   disabled={Boolean(runningSeq) || isAnimating}
                   onClick={() => handleRunSeq('PBB')}
                   className="py-1.5 px-1 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
-                  title="PBB (Slow movements): M3 1.89ms -> M1 1.76ms -> M3 1.5ms -> M1 2ms"
+                  title="PBB: M3 1890 -> M1 1760 -> M3 1.5 -> M1 2 (wait 2s between each command)"
                 >
                   <Play className="w-2.5 h-2.5 fill-current" />
-                  <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB (Slow)'}</span>
+                  <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB'}</span>
                 </button>
 
                 <button
