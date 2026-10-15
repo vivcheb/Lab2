@@ -14,6 +14,7 @@ import {
   THETA_START_RAD,
   THETA_END_RAD,
   radToDeg,
+  getStampRackCalibration,
 } from '../utils/kinematics';
 import { Copy, Check, Terminal, FileCode2 } from 'lucide-react';
 
@@ -53,6 +54,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
   };
 
   // Compute sample IK and motor commands for each step
+  const rackCalib = getStampRackCalibration(selectedLetter);
   const ikSlotHover = solve3DOF_IK(slotPosRob.x, slotPosRob.y, slotPosRob.z + 50);
   const ikSlotGrasp = solve3DOF_IK(slotPosRob.x, slotPosRob.y, slotPosRob.z);
   const ikInkHover = solve3DOF_IK(inkPosRob.x, inkPosRob.y, inkPosRob.z + 50);
@@ -298,19 +300,17 @@ end`;
 [00:00.25] APRILTAG DETECTED: TAG ${TAG_PAPER} (tagId_paper = 5, Paper pad tag)
 [00:00.30] RACK ORIGIN COMPUTED: pRackOrigin = (pTagRackA + pTagRackB) / 2
 
-// --- 1/4: Picking up Stamp ['${selectedLetter}'] ---
-// Hover above slot (z + 0.05m):
-M1 ${ikSlotHover?.m1_us || 1500}
-M2 ${ikSlotHover?.m2_us || 1480}
-M3 ${ikSlotHover?.m3_us || 1520}
-// Lower to grasp (z):
-M1 ${ikSlotGrasp?.m1_us || 1500}
-M2 ${ikSlotGrasp?.m2_us || 1420}
-M3 ${ikSlotGrasp?.m3_us || 1580}
-// Lift up (z + 0.05m):
-M1 ${ikSlotHover?.m1_us || 1500}
-M2 ${ikSlotHover?.m2_us || 1480}
-M3 ${ikSlotHover?.m3_us || 1520}
+// --- 1/4: Picking up Stamp ['${selectedLetter}'] from Rack ---
+// Physical Calibration (${rackCalib.tier === 'inner' ? 'Inner Tier A-M' : 'Outer Tier N-Z'}):
+M1 ${rackCalib.m1_us}  // M1 Shoulder (${rackCalib.tier === 'inner' ? '1900µs' : '1910µs'})
+M2 ${rackCalib.m2_us}  // M2 Reach (${rackCalib.tier === 'inner' ? '1670µs' : '1810µs'})
+M3 ${rackCalib.m3_us}  // M3 Base Yaw (Rotates 5°/letter: ${rackCalib.angleDeg > 0 ? '+' : ''}${rackCalib.angleDeg}°)
+// Lower to grasp stamp:
+POS ${rackCalib.m1_us} ${rackCalib.m2_us} ${rackCalib.m3_us}
+// Lift stamp (z + 0.05m):
+M1 ${rackCalib.m1_us}
+M2 ${rackCalib.m2_us - 100}
+M3 ${rackCalib.m3_us}
 
 // --- 2/4: Re-inking Stamp on Ink Pad ---
 // Hover above ink pad (z + 0.05m):
@@ -336,15 +336,11 @@ M1 ${ikPaperContact?.m1_us || 1650}
 M2 ${ikPaperContact?.m2_us || 1420}
 M3 ${ikPaperContact?.m3_us || 1590}
 
-// --- 4/4: Returning Stamp to Holder ---
-// Hover above slot (z + 0.05m):
-M1 ${ikSlotHover?.m1_us || 1500}
-M2 ${ikSlotHover?.m2_us || 1480}
-M3 ${ikSlotHover?.m3_us || 1520}
-// Lower to release (z):
-M1 ${ikSlotGrasp?.m1_us || 1500}
-M2 ${ikSlotGrasp?.m2_us || 1420}
-M3 ${ikSlotGrasp?.m3_us || 1580}
+// --- 4/4: Returning Stamp to Holder Rack ---
+// Calibrated Slot Return:
+M1 ${rackCalib.m1_us}
+M2 ${rackCalib.m2_us}
+M3 ${rackCalib.m3_us}
 
 [00:03.45] Task complete! All servos in standby.`;
 

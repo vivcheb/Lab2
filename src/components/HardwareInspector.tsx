@@ -23,6 +23,11 @@ import {
   HOME_MOTOR_PULSE_US,
   ZERO_DEG_MOTOR_PULSE_US,
   ALPHABET_26,
+  getStampRackCalibration,
+  RACK_INNER_M1_US,
+  RACK_INNER_M2_US,
+  RACK_OUTER_M1_US,
+  RACK_OUTER_M2_US,
 } from '../utils/kinematics';
 import { CyclePhase } from '../types';
 
@@ -226,6 +231,19 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
     appendTerminal('tx', cmd);
     if (isConnected) {
       await serialManager.sendCommand(cmd);
+    }
+  };
+
+  // Send all 3 motor pulses (POS m1 m2 m3)
+  const handleSendPos = async (m1: number, m2: number, m3: number) => {
+    const s1 = Math.round(m1);
+    const s2 = Math.round(m2);
+    const s3 = Math.round(m3);
+    const cmd = `POS ${s1} ${s2} ${s3}`;
+    appendTerminal('tx', cmd);
+    if (isConnected) {
+      await serialManager.sendMotors(s1, s2, s3);
+      addLog(`Physical Arm: Sent POS ${s1} ${s2} ${s3}`, 'info');
     }
   };
 
@@ -452,6 +470,150 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </div>
                 </div>
               )}
+              {/* Stamp Rack Letter Reach Calibration (A-Z) */}
+              <div className="p-3 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Stamp Rack Letter Reach Calibration (A–Z)</span>
+                  </div>
+                  <span className="text-[10px] text-amber-400/90 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    M3 Rotates 5° per Letter
+                  </span>
+                </div>
+
+                {/* Calibration Rule Legend */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+                  <div className="p-2 rounded bg-sky-950/40 border border-sky-500/30 text-sky-200">
+                    <span className="font-bold text-sky-300">Inner Tier (A–M):</span>
+                    <div className="text-[10px] text-sky-300/80 mt-0.5">
+                      M1: <span className="font-bold text-white">1900µs</span> &bull; M2: <span className="font-bold text-white">1670µs</span> &bull; M3: <span className="text-amber-300 font-semibold">variable (5°/letter)</span>
+                    </div>
+                  </div>
+                  <div className="p-2 rounded bg-purple-950/40 border border-purple-500/30 text-purple-200">
+                    <span className="font-bold text-purple-300">Outer Tier (N–Z):</span>
+                    <div className="text-[10px] text-purple-300/80 mt-0.5">
+                      M1: <span className="font-bold text-white">1910µs</span> &bull; M2: <span className="font-bold text-white">1810µs</span> &bull; M3: <span className="text-amber-300 font-semibold">variable (5°/letter)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Letter Grid: Inner Tier A-M */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-sky-400 font-mono">
+                    <span>Inner Rack [A–M] (M1: 1900µs | M2: 1670µs):</span>
+                    <span>5° step &bull; Center: G (0°)</span>
+                  </div>
+                  <div className="grid grid-cols-13 gap-1">
+                    {'ABCDEFGHIJKLM'.split('').map((char) => {
+                      const calib = getStampRackCalibration(char);
+                      const isSel = selectedLetter === char;
+                      return (
+                        <button
+                          key={char}
+                          type="button"
+                          onClick={() => {
+                            onSelectLetter?.(char);
+                            setTestM1(calib.m1_us);
+                            setTestM2(calib.m2_us);
+                            setTestM3(calib.m3_us);
+                            handleSendPos(calib.m1_us, calib.m2_us, calib.m3_us);
+                            appendTerminal('tx', `M1 ${calib.m1_us} | M2 ${calib.m2_us} | M3 ${calib.m3_us} | REACH [${char}]`);
+                          }}
+                          className={`p-1 flex flex-col items-center justify-center rounded border transition text-center cursor-pointer ${
+                            isSel
+                              ? 'bg-amber-500 text-slate-950 font-black border-amber-300 shadow-md ring-1 ring-amber-400'
+                              : 'bg-slate-900/90 hover:bg-sky-900/40 text-slate-200 border-slate-700/80 hover:border-sky-500/50'
+                          }`}
+                          title={`Letter ${char}: M1=${calib.m1_us}µs, M2=${calib.m2_us}µs, M3=${calib.m3_us}µs (${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°)`}
+                        >
+                          <span className="text-xs font-bold leading-none">{char}</span>
+                          <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-80">
+                            {calib.angleDeg > 0 ? `+${calib.angleDeg}°` : `${calib.angleDeg}°`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Letter Grid: Outer Tier N-Z */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-purple-400 font-mono">
+                    <span>Outer Rack [N–Z] (M1: 1910µs | M2: 1810µs):</span>
+                    <span>5° step &bull; Center: T (0°)</span>
+                  </div>
+                  <div className="grid grid-cols-13 gap-1">
+                    {'NOPQRSTUVWXYZ'.split('').map((char) => {
+                      const calib = getStampRackCalibration(char);
+                      const isSel = selectedLetter === char;
+                      return (
+                        <button
+                          key={char}
+                          type="button"
+                          onClick={() => {
+                            onSelectLetter?.(char);
+                            setTestM1(calib.m1_us);
+                            setTestM2(calib.m2_us);
+                            setTestM3(calib.m3_us);
+                            handleSendPos(calib.m1_us, calib.m2_us, calib.m3_us);
+                            appendTerminal('tx', `M1 ${calib.m1_us} | M2 ${calib.m2_us} | M3 ${calib.m3_us} | REACH [${char}]`);
+                          }}
+                          className={`p-1 flex flex-col items-center justify-center rounded border transition text-center cursor-pointer ${
+                            isSel
+                              ? 'bg-amber-500 text-slate-950 font-black border-amber-300 shadow-md ring-1 ring-amber-400'
+                              : 'bg-slate-900/90 hover:bg-purple-900/40 text-slate-200 border-slate-700/80 hover:border-purple-500/50'
+                          }`}
+                          title={`Letter ${char}: M1=${calib.m1_us}µs, M2=${calib.m2_us}µs, M3=${calib.m3_us}µs (${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°)`}
+                        >
+                          <span className="text-xs font-bold leading-none">{char}</span>
+                          <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-80">
+                            {calib.angleDeg > 0 ? `+${calib.angleDeg}°` : `${calib.angleDeg}°`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Calibrated Target Information Card */}
+                {(() => {
+                  const currentCalib = getStampRackCalibration(selectedLetter || 'A');
+                  return (
+                    <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-between text-xs font-mono">
+                      <div className="flex items-center gap-3">
+                        <span className="text-amber-300 font-bold bg-amber-500/20 px-2 py-1 rounded border border-amber-500/40 text-sm">
+                          Letter '{currentCalib.letter}'
+                        </span>
+                        <div className="text-[11px] text-slate-300 space-x-2">
+                          <span>Tier: <strong className="text-slate-100">{currentCalib.tier.toUpperCase()}</strong></span>
+                          <span>&bull;</span>
+                          <span>M1: <strong className="text-emerald-400">{currentCalib.m1_us}µs</strong></span>
+                          <span>&bull;</span>
+                          <span>M2: <strong className="text-sky-400">{currentCalib.m2_us}µs</strong></span>
+                          <span>&bull;</span>
+                          <span>M3 (Base): <strong className="text-amber-400">{currentCalib.m3_us}µs ({currentCalib.angleDeg > 0 ? `+${currentCalib.angleDeg}` : currentCalib.angleDeg}°)</strong></span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTestM1(currentCalib.m1_us);
+                          setTestM2(currentCalib.m2_us);
+                          setTestM3(currentCalib.m3_us);
+                          handleSendPos(currentCalib.m1_us, currentCalib.m2_us, currentCalib.m3_us);
+                          appendTerminal('tx', `POS ${currentCalib.m1_us} ${currentCalib.m2_us} ${currentCalib.m3_us}`);
+                        }}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-slate-950 font-bold rounded flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Send Reach Pulses</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
 
             {/* Split Grid: Left = Sliders & Quick Actions, Right = Serial Terminal */}
@@ -611,7 +773,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                         2000µs (+45° Mid)
                       </button>
                       <button onClick={() => { setTestM3(2500); handleSendSingleMotor(3, 2500); }} className="hover:text-sky-300 cursor-pointer">
-                        2500µs (+90° Home)
+                        2500µs (+90° Max)
                       </button>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LogEntry, CyclePhase } from '../types';
-import { ALPHABET_26 } from '../utils/kinematics';
+import { ALPHABET_26, getStampRackCalibration } from '../utils/kinematics';
 import {
   Play,
   RotateCcw,
@@ -143,6 +143,105 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <span>{isAnimating ? 'Running...' : 'Execute Sequence'}</span>
                 </button>
               </div>
+            </div>
+
+            {/* Target Stamp Rack Calibration (A-Z) */}
+            <div className={`p-2.5 rounded-lg border flex flex-col gap-2 ${
+              isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-amber-400">
+                  Stamp Rack Calibration (A–Z)
+                </span>
+                <span className="font-mono text-[10px] text-slate-400">
+                  M3: 5°/letter
+                </span>
+              </div>
+
+              {/* Quick Letter Chips: Inner Tier A-M */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[9px] font-mono text-sky-400">
+                  <span>Inner Rack [A–M] (M1: 1900 | M2: 1670):</span>
+                  <span>5° step</span>
+                </div>
+                <div className="grid grid-cols-13 gap-0.5">
+                  {'ABCDEFGHIJKLM'.split('').map((char) => {
+                    const isSel = selectedLetter === char;
+                    return (
+                      <button
+                        key={char}
+                        type="button"
+                        onClick={() => onSelectLetter(char)}
+                        className={`py-1 text-[10px] font-bold rounded transition text-center cursor-pointer ${
+                          isSel
+                            ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
+                            : isDark
+                            ? 'bg-slate-900 hover:bg-sky-950/60 text-slate-300'
+                            : 'bg-white hover:bg-sky-50 text-slate-700 border border-slate-200'
+                        }`}
+                        title={`Select Letter ${char}`}
+                      >
+                        {char}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Quick Letter Chips: Outer Tier N-Z */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[9px] font-mono text-purple-400">
+                  <span>Outer Rack [N–Z] (M1: 1910 | M2: 1810):</span>
+                  <span>5° step</span>
+                </div>
+                <div className="grid grid-cols-13 gap-0.5">
+                  {'NOPQRSTUVWXYZ'.split('').map((char) => {
+                    const isSel = selectedLetter === char;
+                    return (
+                      <button
+                        key={char}
+                        type="button"
+                        onClick={() => onSelectLetter(char)}
+                        className={`py-1 text-[10px] font-bold rounded transition text-center cursor-pointer ${
+                          isSel
+                            ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
+                            : isDark
+                            ? 'bg-slate-900 hover:bg-purple-950/60 text-slate-300'
+                            : 'bg-white hover:bg-purple-50 text-slate-700 border border-slate-200'
+                        }`}
+                        title={`Select Letter ${char}`}
+                      >
+                        {char}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Letter Reach Spec */}
+              {(() => {
+                const calib = getStampRackCalibration(selectedLetter || 'A');
+                return (
+                  <div className={`p-1.5 rounded flex items-center justify-between text-[11px] font-mono ${
+                    isDark ? 'bg-slate-900 border border-slate-800' : 'bg-white border border-slate-200'
+                  }`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-amber-400">'{calib.letter}'</span>
+                      <span className="text-[10px] text-slate-400">
+                        M1:{calib.m1_us} | M2:{calib.m2_us} | M3:{calib.m3_us}µs ({calib.angleDeg > 0 ? `+${calib.angleDeg}` : calib.angleDeg}°)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isAnimating}
+                      onClick={onRunCycle}
+                      className="px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded text-[10px] cursor-pointer"
+                    >
+                      Pick & Stamp
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Home Arm & Actions */}

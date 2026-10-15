@@ -158,7 +158,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
           </div>
         </div>
 
-        {/* Joint 2: Base Yaw theta0 (M2 / s0) */}
+        {/* Joint 2: Base Yaw theta0 (M2 / s0) - Min 1600us, Center 2000/2100us, Max 2600us */}
         <div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-400 flex items-center gap-1">
@@ -172,17 +172,22 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
               </span>
             </span>
           </div>
-          <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-1">
+          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1 relative">
             <div
-              className="bg-sky-400 h-full transition-all duration-75"
+              className="bg-sky-400 h-full transition-all duration-75 rounded-full"
               style={{
                 width: `${Math.min(100, Math.max(0, ((angles3DOF.m2_us - 1600) / 1000) * 100))}%`,
               }}
             />
           </div>
+          <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-0.5">
+            <span>1600µs (-45° Min)</span>
+            <span className="text-sky-400 font-semibold">2000µs / 2100µs (Center)</span>
+            <span>2600µs (+45° Max)</span>
+          </div>
         </div>
 
-        {/* Joint 3: Elbow theta2 (M3 / sel) */}
+        {/* Joint 3: Elbow theta2 (M3 / sel) - Range 1500us (0°) to 2500us (+90° Max) */}
         <div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-400 flex items-center gap-1">
@@ -196,13 +201,18 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
               </span>
             </span>
           </div>
-          <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-1">
+          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
             <div
-              className="bg-amber-400 h-full transition-all duration-75"
+              className="bg-amber-400 h-full transition-all duration-75 rounded-full"
               style={{
-                width: `${Math.min(100, Math.max(0, ((angles3DOF.elbowDeg + 45) / 90) * 100))}%`,
+                width: `${Math.min(100, Math.max(0, ((angles3DOF.m3_us - 1500) / 1000) * 100))}%`,
               }}
             />
+          </div>
+          <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-0.5">
+            <span>1500µs (0° Min)</span>
+            <span>2000µs (+45° Mid)</span>
+            <span className="text-amber-400 font-semibold">2500µs (+90° Max)</span>
           </div>
         </div>
       </div>

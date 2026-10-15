@@ -79,6 +79,79 @@ export const CANVAS_HOLDER_BASE_ANGLE = -Math.PI / 2; // -90 deg (forward)
 
 export const ALPHABET_26 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
+// =========================================================================
+// PHYSICAL CALIBRATION: STAMP RACK LETTERS REACH (A-Z)
+// - Letters A through M (inner rack): M1 = 1900 us, M2 = 1670 us, variable M3 (rotates base 5° per letter)
+// - Letters N through Z (outer rack): M1 = 1910 us, M2 = 1810 us, variable M3 (rotates base 5° per letter)
+// - M3 rotates 5 degrees for each letter (13 letters per tier, centered at 0° for G/T)
+// =========================================================================
+export const RACK_INNER_M1_US = 1900;
+export const RACK_INNER_M2_US = 1670;
+export const RACK_OUTER_M1_US = 1910;
+export const RACK_OUTER_M2_US = 1810;
+export const RACK_M3_DEG_PER_LETTER = 5; // 5 degrees per letter
+
+export interface StampRackCalibration {
+  letter: string;
+  tier: 'inner' | 'outer';
+  indexInTier: number; // 0 to 12
+  angleDeg: number;    // -30° to +30° (5° step per letter, center 0° at G/T)
+  m1_us: number;       // 1900 for A-M, 1910 for N-Z
+  m2_us: number;       // 1670 for A-M, 1810 for N-Z
+  m3_us: number;       // variable base rotation: rotates 5° per letter (1600us to 2600us)
+  m3_angle_deg: number;
+}
+
+/**
+ * Computes exact calibrated motor pulse widths to reach any stamp letter (A-Z)
+ * Matches physical calibration:
+ * - Inner (A-M): M1=1900, M2=1670, M3 variable (5°/letter)
+ * - Outer (N-Z): M1=1910, M2=1810, M3 variable (5°/letter)
+ */
+export function getStampRackCalibration(
+  letter: string,
+  baseCenterUs: number = ZERO_M2_BASE_US // 2100 us
+): StampRackCalibration {
+  const upper = (letter || 'A').toUpperCase();
+  let tier: 'inner' | 'outer' = 'inner';
+  let indexInTier = 0;
+  let m1_us = RACK_INNER_M1_US;
+  let m2_us = RACK_INNER_M2_US;
+
+  if (upper >= 'A' && upper <= 'M') {
+    tier = 'inner';
+    indexInTier = upper.charCodeAt(0) - 'A'.charCodeAt(0);
+    m1_us = RACK_INNER_M1_US;
+    m2_us = RACK_INNER_M2_US;
+  } else if (upper >= 'N' && upper <= 'Z') {
+    tier = 'outer';
+    indexInTier = upper.charCodeAt(0) - 'N'.charCodeAt(0);
+    m1_us = RACK_OUTER_M1_US;
+    m2_us = RACK_OUTER_M2_US;
+  }
+
+  // 13 letters per tier, M3 rotates 5 degrees for each letter:
+  // Center is index 6 ('G' for A-M, 'T' for N-Z) at 0 degrees
+  const angleDeg = (indexInTier - 6) * RACK_M3_DEG_PER_LETTER; // -30° to +30°
+
+  // Map 5° per letter to pulse width.
+  // 500 us per 45 deg = 11.111 us / deg. 5 deg = 55.56 us.
+  const m3_us = Math.round(
+    Math.max(MIN_BASE_YAW_US, Math.min(MAX_BASE_YAW_US, baseCenterUs + (angleDeg / 45) * 500))
+  );
+
+  return {
+    letter: upper,
+    tier,
+    indexInTier,
+    angleDeg,
+    m1_us,
+    m2_us,
+    m3_us,
+    m3_angle_deg: angleDeg,
+  };
+}
+
 // Outward wiping release distance along rho (Handout Page 3: "wipe outward... along rho at constant phi")
 export const WIPE_DISTANCE_MM = 22; // 22mm outward wipe to slide magnet off steel disc against holder lip
 

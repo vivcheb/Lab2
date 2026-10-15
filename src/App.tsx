@@ -7,6 +7,7 @@ import {
   LogEntry,
   CyclePhase,
   ArmParameters,
+  JointAngles3DOF,
 } from './types';
 import {
   solve3DOF_IK,
@@ -31,6 +32,7 @@ import {
   HOME_MOTOR_PULSE_US,
   forwardKinematics3DOF,
   radToDeg,
+  getStampRackCalibration,
 } from './utils/kinematics';
 import { WorkspaceCanvas } from './components/WorkspaceCanvas';
 import { TelemetryPanel } from './components/TelemetryPanel';
@@ -153,9 +155,29 @@ export default function App() {
   const slotData = calculateSlotData(holderPos, armParams.scale);
 
   // Calculate active 3-DOF joint angles and PWM pulses for current position
-  const currentIK =
+  const rawIK =
     solve3DOF_IK(currentPos3D.x, currentPos3D.y, currentPos3D.z, armParams.L1, armParams.L2, armParams.L3) ||
     HOME_ANGLES;
+
+  const isRackApproachPhase =
+    (cyclePhase === 'APPROACH_SLOT' ||
+      cyclePhase === 'PICK_STAMP' ||
+      cyclePhase === 'RETURN_TO_SLOT' ||
+      cyclePhase === 'PUT_DOWN_HOLDER') &&
+    Boolean(activeTargetLetter);
+
+  const rackCalib = isRackApproachPhase && activeTargetLetter
+    ? getStampRackCalibration(activeTargetLetter)
+    : null;
+
+  const currentIK: JointAngles3DOF = rackCalib
+    ? {
+        ...rawIK,
+        m1_us: rackCalib.m1_us,
+        m2_us: rackCalib.m2_us,
+        m3_us: rackCalib.m3_us,
+      }
+    : rawIK;
 
   const isHovering = currentPos3D.z > 15;
 
@@ -218,12 +240,32 @@ export default function App() {
           serialManager.homeArm(1500, 2100, 1500);
         }
       } else {
-        addLog(
-          `> Serial TX: M1 ${ik.m1_us} | M2 ${ik.m2_us} | M3 ${ik.m3_us}`,
-          'kinematics'
-        );
+        const isRackPhase =
+          (phaseName === 'APPROACH_SLOT' ||
+            phaseName === 'PICK_STAMP' ||
+            phaseName === 'RETURN_TO_SLOT' ||
+            phaseName === 'PUT_DOWN_HOLDER') &&
+          Boolean(activeTargetLetter);
+
+        const calib = isRackPhase && activeTargetLetter ? getStampRackCalibration(activeTargetLetter) : null;
+        const txM1 = calib ? calib.m1_us : ik.m1_us;
+        const txM2 = calib ? calib.m2_us : ik.m2_us;
+        const txM3 = calib ? calib.m3_us : ik.m3_us;
+
+        if (calib) {
+          addLog(
+            `> Serial TX: M1 ${txM1} | M2 ${txM2} | M3 ${txM3} [Rack Reach '${activeTargetLetter}': M1=${txM1}, M2=${txM2}, M3=${txM3} (${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°)]`,
+            'kinematics'
+          );
+        } else {
+          addLog(
+            `> Serial TX: M1 ${txM1} | M2 ${txM2} | M3 ${txM3}`,
+            'kinematics'
+          );
+        }
+
         if (serialManager.getIsConnected() && isMirrorEnabled) {
-          serialManager.sendMotors(ik.m1_us, ik.m2_us, ik.m3_us);
+          serialManager.sendMotors(txM1, txM2, txM3);
         }
       }
 
