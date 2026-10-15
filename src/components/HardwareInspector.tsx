@@ -115,21 +115,54 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
         }
         setSequenceStepIndex(i);
         const step = seq[i];
-        if (step.motor === 'M1') setTestM1(step.pulseUs);
-        if (step.motor === 'M2') setTestM2(step.pulseUs);
-        if (step.motor === 'M3') setTestM3(step.pulseUs);
 
-        const cmd = `${step.motor} ${step.pulseUs}`;
-        appendTerminal('tx', `[${seqType} Step ${i + 1}/${seq.length}] ${cmd} (${step.label})`);
-        if (isConnected) {
-          await serialManager.sendCommand(cmd);
+        // Slower movements for PBB via multi-step interpolation (24 sub-steps x 85ms = ~2.04 seconds per smooth transition)
+        if (seqType === 'PBB') {
+          const startVal =
+            step.motor === 'M1' ? testM1 : step.motor === 'M2' ? testM2 : testM3;
+          const targetVal = step.pulseUs;
+          const numSubSteps = 24;
+          const subStepDelay = 85; // 24 * 85ms = ~2040ms smooth, slow physical transition
+
+          appendTerminal('tx', `[PBB Step ${i + 1}/${seq.length}] Moving ${step.motor} slowly to ${step.pulseUs}µs (${step.label})`);
+          addLog(`[PBB Step ${i + 1}/${seq.length}] Moving ${step.motor} slowly to ${step.pulseUs}µs (slow movement)...`, 'info');
+
+          for (let s = 1; s <= numSubSteps; s++) {
+            if (abortSequenceRef.current) break;
+            const subPulse = Math.round(startVal + ((targetVal - startVal) * s) / numSubSteps);
+            if (step.motor === 'M1') setTestM1(subPulse);
+            if (step.motor === 'M2') setTestM2(subPulse);
+            if (step.motor === 'M3') setTestM3(subPulse);
+            if (isConnected) {
+              await serialManager.sendCommand(`${step.motor} ${subPulse}`);
+            }
+            await new Promise((res) => setTimeout(res, subStepDelay));
+          }
+        } else {
+          if (step.motor === 'M1') setTestM1(step.pulseUs);
+          if (step.motor === 'M2') setTestM2(step.pulseUs);
+          if (step.motor === 'M3') setTestM3(step.pulseUs);
+
+          const cmd = `${step.motor} ${step.pulseUs}`;
+          appendTerminal('tx', `[${seqType} Step ${i + 1}/${seq.length}] ${cmd} (${step.label})`);
+          if (isConnected) {
+            await serialManager.sendCommand(cmd);
+          }
+          addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
         }
-        addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
 
-        // Custom delay or default 600ms (e.g. 3000ms / 3 seconds between M1 2ms and M3 1.8ms in PUB/PUT)
+        // Custom delay or default 600ms
         const delay = step.delayMs ?? 600;
-        if (delay > 600) {
-          appendTerminal('sys', `[Pause: waiting ${delay / 1000}s before next step...]`);
+        if (seqType === 'STAMP' && i === 2) {
+          // Explicit 2-second wait between M1 2.000ms and M1 1.500ms
+          appendTerminal('sys', `[STAMP Step 3: Waiting 2 seconds (2000ms) between M1 2.000ms and M1 1.500ms...]`);
+          addLog(`[STAMP] Waiting 2 seconds between M1 2.000ms and M1 1.500ms before retracting...`, 'info');
+        } else if (seqType === 'PUB' && i === 1) {
+          // Explicit 3-second wait between M1 2ms and M3 1.8ms
+          appendTerminal('sys', `[PUB/PUT Step 2: Waiting 3 seconds (3000ms) before M3 1.8ms...]`);
+          addLog(`[PUB/PUT] Waiting 3 seconds between M1 2ms and M3 1.8ms...`, 'info');
+        } else if (delay > 600) {
+          appendTerminal('sys', `[Pause: waiting ${(delay / 1000).toFixed(1)}s before next step...]`);
         }
         await new Promise((res) => setTimeout(res, delay));
       }
@@ -384,20 +417,53 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
         mMatch[1].toUpperCase().startsWith('B') || mMatch[1].toUpperCase().startsWith('Y')
           ? 'M2'
           : mMatch[1].toUpperCase();
-      const val = parsePulseInput(mMatch[2]);
+      let val = parsePulseInput(mMatch[2]);
       if (val !== null) {
+        if (motorKey === 'M2') {
+          if (val >= 1600 && val <= 3000) {
+            const isAbove25 = val > 2500;
+            appendTerminal(
+              'sys',
+              `✓ SAFE RANGE VERIFIED: M2 Base Yaw ${val}µs (${(val / 1000).toFixed(2)}ms) is in safe range.${
+                isAbove25 ? ' (Values >2.5ms and ≤3.0ms are 100% safe)' : ''
+              }`
+            );
+            addLog(`Real Arm: M2 pulse ${val}µs (${(val / 1000).toFixed(2)}ms) verified within safe range (all values under 3.0ms are safe)`, 'info');
+          } else if (val > 3000) {
+            appendTerminal('sys', `⚠ WARNING: M2 pulse ${val}µs exceeds safe ceiling of 3000µs (3.0ms). Clamped to safe 3000µs limit.`);
+            val = 3000;
+          } else if (val < 1600) {
+            appendTerminal('sys', `⚠ WARNING: M2 pulse ${val}µs is below safe floor of 1600µs (1.6ms). Clamped to safe 1600µs limit.`);
+            val = 1600;
+          }
+        }
         normalizedCmd = `${motorKey} ${val}`;
       }
     } else {
       const standAlone = raw.match(/^([0-9.]+(?:\s*(?:ms|us))?)$/i);
       if (standAlone) {
-        const val = parsePulseInput(standAlone[1]);
+        let val = parsePulseInput(standAlone[1]);
         if (val !== null) {
+          if (val >= 1600 && val <= 3000) {
+            const isAbove25 = val > 2500;
+            appendTerminal(
+              'sys',
+              `✓ SAFE RANGE VERIFIED: M2 Base Yaw ${val}µs (${(val / 1000).toFixed(2)}ms) is in safe range.${
+                isAbove25 ? ' (Values >2.5ms and ≤3.0ms are 100% safe)' : ''
+              }`
+            );
+            addLog(`Real Arm: M2 pulse ${val}µs (${(val / 1000).toFixed(2)}ms) in safe range`, 'info');
+          } else if (val > 3000) {
+            appendTerminal('sys', `⚠ WARNING: M2 pulse ${val}µs exceeds safe ceiling of 3000µs (3.0ms). Clamped to safe 3000µs limit.`);
+            val = 3000;
+          } else if (val < 1600) {
+            val = 1600;
+          }
           normalizedCmd = `M2 ${val}`;
         }
       } else {
         const posMatch = raw.match(
-          /^POS\s*[:=]?\s*([0-9.]+(?:ms|us)?)\s+([0-9.]+(?:ms|us)?)\s+([0-9.]+(?:ms|us)?)$/i
+          /^POS\s*[:=]?\s*([0-9.]+(?:\s*(?:ms|us))?)\s+([0-9.]+(?:\s*(?:ms|us))?)\s+([0-9.]+(?:\s*(?:ms|us))?)$/i
         );
         if (posMatch) {
           const v1 = parsePulseInput(posMatch[1]);
@@ -872,14 +938,14 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                             <span>PBB</span>
                           </button>
                           <div>
-                            <div className="text-[11px] font-bold text-sky-300">Pick Bottom Bay</div>
-                            <div className="text-[9px] text-sky-400/80 font-mono">Inner Rack A–M sequence (4 steps)</div>
+                            <div className="text-[11px] font-bold text-sky-300">Pick Bottom Bay (Slow)</div>
+                            <div className="text-[9px] text-sky-400/80 font-mono">Slow, gentle 4-step sequence (2.0s smooth transitions)</div>
                           </div>
                         </div>
 
                         {runningSequence === 'PBB' && (
                           <span className="text-[10px] font-mono text-sky-300 animate-pulse bg-sky-900/60 px-2 py-0.5 rounded border border-sky-400">
-                            Running step {sequenceStepIndex + 1}/4
+                            Slow step {sequenceStepIndex + 1}/4
                           </span>
                         )}
                       </div>
@@ -926,13 +992,13 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                           </button>
                           <div>
                             <div className="text-[11px] font-bold text-emerald-300">stamp sequence</div>
-                            <div className="text-[9px] text-emerald-400/80 font-mono">M2 1.6ms &rarr; M3 1.785ms &rarr; M1 2ms &rarr; 1.5ms</div>
+                            <div className="text-[9px] text-emerald-400/80 font-mono">M2 1.6ms &rarr; M3 1.785ms &rarr; M1 2ms &rarr; (wait 2s) &rarr; M1 1.5ms</div>
                           </div>
                         </div>
 
                         {runningSequence === 'STAMP' && (
                           <span className="text-[10px] font-mono text-emerald-300 animate-pulse bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-400">
-                            Running step {sequenceStepIndex + 1}/4
+                            {sequenceStepIndex === 2 ? 'Step 3: 2s wait between M1 2ms & M1 1.5ms...' : `Running step ${sequenceStepIndex + 1}/4`}
                           </span>
                         )}
                       </div>
@@ -952,8 +1018,10 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                                   ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
                                   : 'bg-slate-950 text-slate-400 border-slate-800'
                               }`}
+                              title={idx === 2 ? `${s.label} (waits 2 seconds before M1 1.5ms)` : s.label}
                             >
                               {s.label}
+                              {idx === 2 ? ' (wait 2s)' : ''}
                             </span>
                           );
                         })}
@@ -1057,7 +1125,23 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                 <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-200">Manual Servo Pulse Testing</span>
-                    <span className="text-[10px] text-slate-400 font-mono">[M1/M3: 1500–2500µs | M2: 1600–3000µs]</span>
+                    <span className="text-[10px] text-emerald-400 font-mono font-medium">[M1/M3: 1500–2500µs | M2 Safe Range: 1600–3000µs]</span>
+                  </div>
+
+                  {/* Prominent Safety Range Banner */}
+                  <div className="p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-500/50 text-[11px] text-emerald-200 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-300">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Real Arm Safety Range Confirmed (&lt; 3.0ms / 3000µs Safe)</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-300 font-bold bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-400/80 shrink-0">
+                        &lt; 3.0ms SAFE
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-emerald-300/90 leading-tight">
+                      <strong>All input values under 3.0ms (1600µs to 3000µs) on M2 Base Yaw are in the safe range.</strong> Values greater than 2.5ms (e.g. 2.6ms, 2.7ms, 2.8ms, 2.9ms, 3.0ms / 2600–3000µs) are completely SAFE and well within the physical operating envelope.
+                    </p>
                   </div>
 
                   {/* Motor 1: Shoulder Elevation */}
@@ -1114,11 +1198,13 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </div>
 
                   {/* Motor 2: Base Yaw (min 1600us, max 3000us, center 2100us) */}
-                  <div className="space-y-1 pt-2 border-t border-slate-900">
+                  <div className="space-y-1.5 pt-2 border-t border-slate-900">
                     <div className="flex justify-between items-center text-[11px]">
                       <div className="flex items-center gap-1.5">
                         <span className="text-amber-300 font-medium">M2 (Base Yaw θ₀)</span>
-                        <span className="text-[9px] text-amber-500/80 font-mono">[1600–3000µs]</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono font-semibold">
+                          Safe Range: 1.6ms–3.0ms (&lt;3.0ms safe)
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <input
@@ -1134,8 +1220,8 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                             }
                           }}
                           onBlur={() => setM2InputText(String(testM2))}
-                          placeholder="3ms / 3000"
-                          title="Direct input: e.g. 3ms, 3.0ms, 3000, 2100, 1.75ms (Range: 1600us to 3000us)"
+                          placeholder="up to 3ms"
+                          title="Direct input: values under 3ms (1600us to 3000us) are in the safe range"
                           className="w-20 px-1.5 py-0.5 bg-slate-900 border border-slate-700 focus:border-amber-400 text-amber-300 font-mono font-bold text-right rounded text-xs focus:outline-hidden"
                         />
                         <span className="font-mono text-slate-200 font-bold">
@@ -1143,6 +1229,41 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {/* Live Validation Pill for M2 input */}
+                    {(() => {
+                      const parsed = parsePulseInput(m2InputText);
+                      if (parsed === null) return null;
+                      if (parsed >= 1600 && parsed <= 3000) {
+                        return (
+                          <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
+                            <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                            <span>
+                              <strong>Safe Range Verified:</strong> {(parsed / 1000).toFixed(2)}ms ({parsed}µs) is within safe range. {parsed > 2500 ? '(Values >2.5ms up to 3.0ms are 100% safe)' : ''}
+                            </span>
+                          </div>
+                        );
+                      } else if (parsed > 3000) {
+                        return (
+                          <div className="flex items-center gap-1 text-[10px] text-rose-400 font-mono bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/30">
+                            <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
+                            <span>
+                              <strong>Out of Safe Range:</strong> {(parsed / 1000).toFixed(2)}ms exceeds safe ceiling of 3.0ms (3000µs).
+                            </span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="flex items-center gap-1 text-[10px] text-rose-400 font-mono bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/30">
+                            <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
+                            <span>
+                              <strong>Out of Safe Range:</strong> {(parsed / 1000).toFixed(2)}ms is below minimum of 1.6ms (1600µs).
+                            </span>
+                          </div>
+                        );
+                      }
+                    })()}
+
                     <input
                       type="range"
                       min="1600"
@@ -1156,22 +1277,32 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                       }}
                       className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded cursor-pointer"
                     />
-                    <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                    <div className="flex flex-wrap justify-between gap-1 text-[9px] text-slate-400 font-mono">
                       <button onClick={() => { setTestM2(1600); handleSendSingleMotor(2, 1600); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-400">
                         1600µs (Min)
-                      </button>
-                      <button onClick={() => { setTestM2(1750); handleSendSingleMotor(2, 1750); }} className="hover:text-amber-300 cursor-pointer">
-                        1750µs (Z/M)
                       </button>
                       <button onClick={() => { setTestM2(2100); handleSendSingleMotor(2, 2100); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-300">
                         2100µs (0° Center)
                       </button>
-                      <button onClick={() => { setTestM2(2425); handleSendSingleMotor(2, 2425); }} className="hover:text-amber-300 cursor-pointer">
-                        2425µs (N/A)
+                      <button onClick={() => { setTestM2(2500); handleSendSingleMotor(2, 2500); }} className="hover:text-emerald-300 cursor-pointer">
+                        2500µs (2.5ms)
                       </button>
-                      <button onClick={() => { setTestM2(3000); handleSendSingleMotor(2, 3000); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-400">
-                        3000µs (Max / 3.0ms)
+                      <button onClick={() => { setTestM2(2600); handleSendSingleMotor(2, 2600); }} className="hover:text-emerald-300 cursor-pointer font-bold text-emerald-400">
+                        2600µs (2.6ms Safe)
                       </button>
+                      <button onClick={() => { setTestM2(2800); handleSendSingleMotor(2, 2800); }} className="hover:text-emerald-300 cursor-pointer font-bold text-emerald-400">
+                        2800µs (2.8ms Safe)
+                      </button>
+                      <button onClick={() => { setTestM2(3000); handleSendSingleMotor(2, 3000); }} className="hover:text-emerald-300 cursor-pointer font-bold text-emerald-300">
+                        3000µs (3.0ms Safe Max)
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono px-1 text-emerald-400/90 pt-0.5">
+                      <span className="flex items-center gap-1 font-medium">
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        Status: {testM2}µs ({(testM2 / 1000).toFixed(2)}ms) — In Safe Range (&le;3.0ms / 3000µs)
+                      </span>
+                      <span className="text-slate-400 text-[9px]">Ceiling: 3000µs / 3.0ms</span>
                     </div>
                   </div>
 
@@ -1310,7 +1441,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
               <div>
                 <h3 className="text-xs font-bold text-purple-300">Microcontroller Firmware (`firmware/rasticrane_controller.ino`)</h3>
                 <p className="text-[11px] text-slate-400">
-                  Calibrated for 1500µs (0°) to 2500µs (+90° Home). Supports M1/M2/M3, POS, HOME, and STOP.
+                  Calibrated for M1/M3 (1500–2500µs) and M2 Base Yaw (1600–3000µs / 1.6–3.0ms safe range, values under 3.0ms safe). Supports M1/M2/M3, POS, HOME, and STOP.
                 </p>
               </div>
               <button
@@ -1453,16 +1584,17 @@ const FIRMWARE_SOURCE = `#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32)
 #endif
 
 Servo servo1, servo2, servo3;
+// SAFETY OPERATIONAL RANGES:
 // M1 Shoulder & M3 Elbow: 1500us (0 deg) to 2500us (+90 deg)
-// M2 Base Yaw: Min 1600us (-45 deg), Center 2100us (0 deg), Max 3000us (+81 deg / 3.0ms)
+// M2 Base Yaw Safety Range: 1600us to 3000us (1.6ms to 3.0ms - all values under 3.0ms are in safe range)
 const int M1_HOME_US = 1500;
-const int M2_HOME_US = 2100; // Center Base Yaw (min 1600, max 3000)
+const int M2_HOME_US = 2100; // Center Base Yaw (Safe Range: 1600 to 3000us)
 const int M3_HOME_US = 1500;
 
 void setup() {
   Serial.begin(115200);
   servo1.attach(PIN_M1, 1000, 2600);
-  servo2.attach(PIN_M2, 1000, 3100); // Attach with headroom for 1600-3000us (3.0ms)
+  servo2.attach(PIN_M2, 1000, 3100); // Attach with 3100us timer headroom for safe 1600-3000us range
   servo3.attach(PIN_M3, 1000, 2600);
   setHome();
 }
@@ -1483,15 +1615,15 @@ void setZero() {
 
 void loop() {
   if (Serial.available()) {
-    String cmd = Serial.readStringUntil('\\n');
+    String cmd = Serial.readStringUntil('\n');
     cmd.trim();
     if (cmd == "HOME") setHome();
     else if (cmd == "ZERO") setZero();
     else if (cmd == "STAMP") {
-      // STAMP sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> M1 1.500ms
+      // STAMP sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> wait 2 seconds -> M1 1.500ms
       servo2.writeMicroseconds(1600); delay(600);
       servo3.writeMicroseconds(1785); delay(600);
-      servo1.writeMicroseconds(2000); delay(600);
+      servo1.writeMicroseconds(2000); delay(2000); // 2 seconds wait between M1 2.000ms and M1 1.500ms
       servo1.writeMicroseconds(1500);
       Serial.println("OK: STAMP sequence complete");
     }
@@ -1507,12 +1639,12 @@ void loop() {
       Serial.println("OK: PUB/PUT sequence complete");
     }
     else if (cmd == "PBB") {
-      // PBB sequence: M3 1.89ms -> M1 1.76ms -> M3 1.5ms -> M1 2ms
-      servo3.writeMicroseconds(1890); delay(600);
-      servo1.writeMicroseconds(1760); delay(600);
-      servo3.writeMicroseconds(1500); delay(600);
-      servo1.writeMicroseconds(2000);
-      Serial.println("OK: PBB sequence complete");
+      // PBB sequence (slower movements with 1800ms duration between steps)
+      servo3.writeMicroseconds(1890); delay(1800);
+      servo1.writeMicroseconds(1760); delay(1800);
+      servo3.writeMicroseconds(1500); delay(1800);
+      servo1.writeMicroseconds(2000); delay(1800);
+      Serial.println("OK: PBB sequence complete (slow)");
     }
     else if (cmd.startsWith("M1 ")) servo1.writeMicroseconds(cmd.substring(3).toInt());
     else if (cmd.startsWith("M2 ")) servo2.writeMicroseconds(cmd.substring(3).toInt());

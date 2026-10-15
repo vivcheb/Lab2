@@ -142,17 +142,17 @@ export const PUB_SEQUENCE: SequenceStep[] = [
 export const PUT_SEQUENCE = PUB_SEQUENCE; // Alias for PUT command
 
 export const PBB_SEQUENCE: SequenceStep[] = [
-  { motor: 'M3', pulseUs: 1890, pulseMs: 1.89, label: 'M3 1.89ms' },
-  { motor: 'M1', pulseUs: 1760, pulseMs: 1.76, label: 'M1 1.76ms' },
-  { motor: 'M3', pulseUs: 1500, pulseMs: 1.5,  label: 'M3 1.5ms' },
-  { motor: 'M1', pulseUs: 2000, pulseMs: 2.0,  label: 'M1 2ms' },
+  { motor: 'M3', pulseUs: 1890, pulseMs: 1.89, label: 'M3 1.89ms (Slow)', delayMs: 1800 },
+  { motor: 'M1', pulseUs: 1760, pulseMs: 1.76, label: 'M1 1.76ms (Slow)', delayMs: 1800 },
+  { motor: 'M3', pulseUs: 1500, pulseMs: 1.5,  label: 'M3 1.5ms (Slow)',  delayMs: 1800 },
+  { motor: 'M1', pulseUs: 2000, pulseMs: 2.0,  label: 'M1 2ms (Slow)',    delayMs: 1800 },
 ];
 
-// STAMP sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> M1 1.500ms
+// STAMP sequence: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> wait 2 seconds -> M1 1.500ms
 export const STAMP_SEQUENCE: SequenceStep[] = [
   { motor: 'M2', pulseUs: 1600, pulseMs: 1.600, label: 'M2 1.600ms' },
   { motor: 'M3', pulseUs: 1785, pulseMs: 1.785, label: 'M3 1.785ms' },
-  { motor: 'M1', pulseUs: 2000, pulseMs: 2.000, label: 'M1 2.000ms' },
+  { motor: 'M1', pulseUs: 2000, pulseMs: 2.000, label: 'M1 2.000ms', delayMs: 2000 }, // Wait two seconds between M1 2.000ms and M1 1.500ms
   { motor: 'M1', pulseUs: 1500, pulseMs: 1.500, label: 'M1 1.500ms' },
 ];
 

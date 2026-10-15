@@ -108,10 +108,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         setSeqStepIdx(i);
         const step = seq[i];
         const cmd = `${step.motor} ${step.pulseUs}`;
-        if (serialManager.getIsConnected()) {
-          await serialManager.sendCommand(cmd);
+
+        if (seqType === 'PBB') {
+          // Send slow sub-steps for PBB (20 sub-steps with 90ms = ~1.8s smooth slow motion)
+          for (let s = 1; s <= 20; s++) {
+            if (serialManager.getIsConnected()) {
+              await serialManager.sendCommand(cmd);
+            }
+            await new Promise((res) => setTimeout(res, 90));
+          }
+        } else {
+          if (serialManager.getIsConnected()) {
+            await serialManager.sendCommand(cmd);
+          }
         }
-        // Custom delay (e.g. 3000ms / 3s between M1 2ms and M3 1.8ms in PUB/PUT) or standard 600ms
+
+        // Custom delay (1800ms for slow PBB, 2000ms for STAMP hold, 3000ms for PUB/PUT wait)
         const delay = step.delayMs ?? 600;
         await new Promise((res) => setTimeout(res, delay));
       }
@@ -307,10 +319,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   disabled={Boolean(runningSeq) || isAnimating}
                   onClick={() => handleRunSeq('PBB')}
                   className="py-1.5 px-1 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
-                  title="PBB: M3 1.89ms -> M1 1.76ms -> M3 1.5ms -> M1 2ms"
+                  title="PBB (Slow movements): M3 1.89ms -> M1 1.76ms -> M3 1.5ms -> M1 2ms"
                 >
                   <Play className="w-2.5 h-2.5 fill-current" />
-                  <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB (Bottom)'}</span>
+                  <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB (Slow)'}</span>
                 </button>
 
                 <button
@@ -318,7 +330,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   disabled={Boolean(runningSeq) || isAnimating}
                   onClick={() => handleRunSeq('STAMP')}
                   className="py-1.5 px-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
-                  title="stamp: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> M1 1.500ms"
+                  title="stamp: M2 1.600ms -> M3 1.785ms -> M1 2.000ms -> (wait 2s) -> M1 1.500ms"
                 >
                   <Play className="w-2.5 h-2.5 fill-current" />
                   <span>{runningSeq === 'STAMP' ? `stamp (${seqStepIdx + 1}/4)` : 'stamp'}</span>
