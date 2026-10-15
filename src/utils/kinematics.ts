@@ -141,11 +141,12 @@ export const PUB_SEQUENCE: SequenceStep[] = [
 
 export const PUT_SEQUENCE = PUB_SEQUENCE; // Alias for PUT command
 
-// PBB sequence: intermediate values ONLY when transitioning M3 1.890ms -> 1.6ms (slow) then 1.6ms -> 1.5ms (quick) after M1 1760; 2s wait between each command
+// PBB sequence: add 0.005ms (+5µs) to previous M2; intermediate values ONLY when transitioning M3 1.890ms -> 1.57ms (slow) then 1.57ms -> 1.5ms (quick) after M1 1760; 2s wait between each command
 export const PBB_SEQUENCE: SequenceStep[] = [
+  { motor: 'M2', pulseUs: 0, pulseMs: 0, label: 'M2 (+0.005ms to prev M2)', delayMs: 2000 },
   { motor: 'M3', pulseUs: 1890, pulseMs: 1.890, label: 'M3 1890', delayMs: 2000 },
   { motor: 'M1', pulseUs: 1760, pulseMs: 1.760, label: 'M1 1760', delayMs: 2000 },
-  { motor: 'M3', pulseUs: 1500, pulseMs: 1.500, label: 'M3 1.5 (1.89→1.6 slow, →1.5 quick)', delayMs: 2000 },
+  { motor: 'M3', pulseUs: 1500, pulseMs: 1.500, label: 'M3 1.5 (1.89→1.57ms slow, →1.5ms quick)', delayMs: 2000 },
   { motor: 'M1', pulseUs: 2000, pulseMs: 2.000, label: 'M1 2', delayMs: 2000 },
 ];
 
