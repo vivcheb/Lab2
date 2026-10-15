@@ -158,7 +158,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
           </div>
         </div>
 
-        {/* Joint 2: Base Yaw theta0 (M2 / s0) - Min 1600us, Center 2000/2100us, Max 2600us */}
+        {/* Joint 2: Base Yaw theta0 (M2 / s0) - Min 1600us, Center 2100us, Max 3000us (3.0ms) */}
         <div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-400 flex items-center gap-1">
@@ -176,14 +176,14 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <div
               className="bg-sky-400 h-full transition-all duration-75 rounded-full"
               style={{
-                width: `${Math.min(100, Math.max(0, ((angles3DOF.m2_us - 1600) / 1000) * 100))}%`,
+                width: `${Math.min(100, Math.max(0, ((angles3DOF.m2_us - 1600) / (3000 - 1600)) * 100))}%`,
               }}
             />
           </div>
           <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-0.5">
-            <span>1600µs (-45° Min)</span>
-            <span className="text-sky-400 font-semibold">2000µs / 2100µs (Center)</span>
-            <span>2600µs (+45° Max)</span>
+            <span>1600µs (Min)</span>
+            <span className="text-sky-400 font-semibold">2100µs (Center)</span>
+            <span>3000µs (Max / 3.0ms)</span>
           </div>
         </div>
 

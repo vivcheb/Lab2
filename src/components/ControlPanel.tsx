@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { LogEntry, CyclePhase } from '../types';
-import { ALPHABET_26, getStampRackCalibration } from '../utils/kinematics';
+import {
+  ALPHABET_26,
+  getStampRackCalibration,
+  PUB_SEQUENCE,
+  PBB_SEQUENCE,
+  LETTER_BASE_YAW_MAP,
+} from '../utils/kinematics';
+import { serialManager } from '../utils/serial';
 import {
   Play,
   RotateCcw,
@@ -75,12 +82,36 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const [wordInput, setWordInput] = useState('ROBOT');
   const [activeTab, setActiveTab] = useState<'word' | 'manual'>('word');
+  const [runningSeq, setRunningSeq] = useState<'PUB' | 'PBB' | null>(null);
+  const [seqStepIdx, setSeqStepIdx] = useState<number>(0);
   const isDark = theme !== 'light';
 
   const handleWordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!wordInput.trim() || isAnimating) return;
     onRunWordSequence(wordInput.trim().toUpperCase());
+  };
+
+  const handleRunSeq = async (seqType: 'PUB' | 'PBB') => {
+    if (runningSeq || isAnimating) return;
+    const seq = seqType === 'PUB' ? PUB_SEQUENCE : PBB_SEQUENCE;
+    setRunningSeq(seqType);
+    setSeqStepIdx(0);
+
+    try {
+      for (let i = 0; i < seq.length; i++) {
+        setSeqStepIdx(i);
+        const step = seq[i];
+        const cmd = `${step.motor} ${step.pulseUs}`;
+        if (serialManager.getIsConnected()) {
+          await serialManager.sendCommand(cmd);
+        }
+        await new Promise((res) => setTimeout(res, 600));
+      }
+    } finally {
+      setRunningSeq(null);
+      setSeqStepIdx(0);
+    }
   };
 
   return (
@@ -154,34 +185,38 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   Stamp Rack Calibration (A–Z)
                 </span>
                 <span className="font-mono text-[10px] text-amber-400/90 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded">
-                  M2 Base: 5°/letter
+                  M1 &amp; M3: 1500µs | Base Yaw M2
                 </span>
               </div>
 
               {/* Quick Letter Chips: Inner Tier A-M */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[9px] font-mono text-sky-400">
-                  <span>Inner Rack [A–M] (M1 Shldr: 1900 | M3 Elbow: 1670):</span>
-                  <span>5° step</span>
+                  <span>Inner Rack [A–M] (M1: 1500 | M3: 1500 | Base Yaw M2):</span>
+                  <span>Z/M: 1750ms &bull; N/A: 2425ms</span>
                 </div>
                 <div className="grid grid-cols-13 gap-0.5">
                   {'ABCDEFGHIJKLM'.split('').map((char) => {
                     const isSel = selectedLetter === char;
+                    const yaw = LETTER_BASE_YAW_MAP[char];
                     return (
                       <button
                         key={char}
                         type="button"
                         onClick={() => onSelectLetter(char)}
-                        className={`py-1 text-[10px] font-bold rounded transition text-center cursor-pointer ${
+                        className={`py-1 flex flex-col items-center justify-center text-[10px] font-bold rounded transition text-center cursor-pointer ${
                           isSel
                             ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
                             : isDark
                             ? 'bg-slate-900 hover:bg-sky-950/60 text-slate-300'
                             : 'bg-white hover:bg-sky-50 text-slate-700 border border-slate-200'
                         }`}
-                        title={`Select Letter ${char}`}
+                        title={`Select Letter ${char}: Base Yaw M2 = ${yaw}µs, M1=1500µs, M3=1500µs`}
                       >
-                        {char}
+                        <span>{char}</span>
+                        <span className="text-[7px] font-mono leading-none opacity-80 mt-0.5">
+                          {yaw}
+                        </span>
                       </button>
                     );
                   })}
@@ -191,27 +226,31 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               {/* Quick Letter Chips: Outer Tier N-Z */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[9px] font-mono text-purple-400">
-                  <span>Outer Rack [N–Z] (M1 Shldr: 1910 | M3 Elbow: 1810):</span>
-                  <span>5° step</span>
+                  <span>Outer Rack [N–Z] (M1: 1500 | M3: 1500 | Base Yaw M2):</span>
+                  <span>Z/M: 1750ms &bull; N/A: 2425ms</span>
                 </div>
                 <div className="grid grid-cols-13 gap-0.5">
                   {'NOPQRSTUVWXYZ'.split('').map((char) => {
                     const isSel = selectedLetter === char;
+                    const yaw = LETTER_BASE_YAW_MAP[char];
                     return (
                       <button
                         key={char}
                         type="button"
                         onClick={() => onSelectLetter(char)}
-                        className={`py-1 text-[10px] font-bold rounded transition text-center cursor-pointer ${
+                        className={`py-1 flex flex-col items-center justify-center text-[10px] font-bold rounded transition text-center cursor-pointer ${
                           isSel
                             ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
                             : isDark
                             ? 'bg-slate-900 hover:bg-purple-950/60 text-slate-300'
                             : 'bg-white hover:bg-purple-50 text-slate-700 border border-slate-200'
                         }`}
-                        title={`Select Letter ${char}`}
+                        title={`Select Letter ${char}: Base Yaw M2 = ${yaw}µs, M1=1500µs, M3=1500µs`}
                       >
-                        {char}
+                        <span>{char}</span>
+                        <span className="text-[7px] font-mono leading-none opacity-80 mt-0.5">
+                          {yaw}
+                        </span>
                       </button>
                     );
                   })}
@@ -228,7 +267,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-bold text-amber-400">'{calib.letter}'</span>
                       <span className="text-[10px] text-slate-300">
-                        M1:{calib.m1_us} | <span className="text-amber-300 font-semibold">M2 Base:{calib.m2_us}µs ({calib.angleDeg > 0 ? `+${calib.angleDeg}` : calib.angleDeg}°)</span> | M3 Elbow:{calib.m3_us}µs
+                        M1: 1500µs | <span className="text-amber-300 font-semibold">M2 Base: {calib.m2_us}µs</span> | M3: 1500µs
                       </span>
                     </div>
                     <button
@@ -237,11 +276,36 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                       onClick={onRunCycle}
                       className="px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded text-[10px] cursor-pointer"
                     >
-                      Pick & Stamp
+                      Pick &amp; Stamp
                     </button>
                   </div>
                 );
               })()}
+
+              {/* Sequence Buttons: PUB & PBB */}
+              <div className="pt-1.5 border-t border-slate-800/80 flex gap-2">
+                <button
+                  type="button"
+                  disabled={Boolean(runningSeq) || isAnimating}
+                  onClick={() => handleRunSeq('PUB')}
+                  className="flex-1 py-1.5 px-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
+                  title="PUB: M3 1.67ms -> M1 2ms -> M3 1.8ms -> M1 1.9ms -> M3 1.75ms -> M1 1.8ms -> M3 1.85ms"
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>{runningSeq === 'PUB' ? `PUB (${seqStepIdx + 1}/7)` : 'PUB (Upper Bay)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={Boolean(runningSeq) || isAnimating}
+                  onClick={() => handleRunSeq('PBB')}
+                  className="flex-1 py-1.5 px-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
+                  title="PBB: M3 1.89ms -> M1 1.76ms -> M3 1.5ms -> M1 2ms"
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB (Bottom Bay)'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Home Arm & Actions */}

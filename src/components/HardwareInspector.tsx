@@ -24,10 +24,12 @@ import {
   ZERO_DEG_MOTOR_PULSE_US,
   ALPHABET_26,
   getStampRackCalibration,
-  RACK_INNER_M1_US,
-  RACK_INNER_M2_US,
-  RACK_OUTER_M1_US,
-  RACK_OUTER_M2_US,
+  LETTER_BASE_YAW_MAP,
+  PUB_SEQUENCE,
+  PBB_SEQUENCE,
+  MAX_BASE_YAW_US,
+  MIN_BASE_YAW_US,
+  SequenceStep,
 } from '../utils/kinematics';
 import { CyclePhase } from '../types';
 
@@ -72,12 +74,66 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [hwWordInput, setHwWordInput] = useState('ROBOT');
 
-  // Manual test pulse values (M1/M3 range: 1500us to 2500us; M2 Base range: 1600us to 2600us, Center: 2100us)
+  // Manual test pulse values (M1/M3 range: 1500us to 2500us; M2 Base range: 1600us to 3000us, Center: 2100us)
   const [testM1, setTestM1] = useState(1500);
   const [testM2, setTestM2] = useState(2100);
   const [testM3, setTestM3] = useState(1500);
 
+  // Sequence runner state for PUB & PBB
+  const [runningSequence, setRunningSequence] = useState<'PUB' | 'PBB' | null>(null);
+  const [sequenceStepIndex, setSequenceStepIndex] = useState<number>(0);
+  const abortSequenceRef = useRef<boolean>(false);
+
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Sequence execution for PUB and PBB
+  const handleRunSequence = async (seqType: 'PUB' | 'PBB') => {
+    if (runningSequence) return;
+    const seq = seqType === 'PUB' ? PUB_SEQUENCE : PBB_SEQUENCE;
+    setRunningSequence(seqType);
+    setSequenceStepIndex(0);
+    abortSequenceRef.current = false;
+    addLog(`=== Starting Sequence [${seqType}] (${seq.length} steps) ===`, 'info');
+    appendTerminal('sys', `=== STARTING SEQUENCE ${seqType} (${seq.length} steps) ===`);
+
+    try {
+      for (let i = 0; i < seq.length; i++) {
+        if (abortSequenceRef.current) {
+          addLog(`Sequence ${seqType} aborted by user.`, 'warn');
+          appendTerminal('sys', `Sequence ${seqType} aborted.`);
+          break;
+        }
+        setSequenceStepIndex(i);
+        const step = seq[i];
+        if (step.motor === 'M1') setTestM1(step.pulseUs);
+        if (step.motor === 'M2') setTestM2(step.pulseUs);
+        if (step.motor === 'M3') setTestM3(step.pulseUs);
+
+        const cmd = `${step.motor} ${step.pulseUs}`;
+        appendTerminal('tx', `[${seqType} Step ${i + 1}/${seq.length}] ${cmd} (${step.label})`);
+        if (isConnected) {
+          await serialManager.sendCommand(cmd);
+        }
+        addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
+
+        // 600ms delay between sequence steps for physical servo movement
+        await new Promise((res) => setTimeout(res, 600));
+      }
+      if (!abortSequenceRef.current) {
+        addLog(`Sequence ${seqType} completed successfully!`, 'success');
+        appendTerminal('sys', `Sequence ${seqType} completed successfully!`);
+      }
+    } catch (err: any) {
+      addLog(`Error executing sequence ${seqType}: ${err?.message || err}`, 'error');
+    } finally {
+      setRunningSequence(null);
+      setSequenceStepIndex(0);
+    }
+  };
+
+  const handleStopSequence = () => {
+    abortSequenceRef.current = true;
+  };
 
   // Helper to parse input/feedback and keep manual servo pulse testing sliders visually in sync with serial commands
   const parseAndSyncMotors = (rawText: string) => {
@@ -93,12 +149,12 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       }
     }
 
-    // Check for M2 <us>
+    // Check for M2 <us> (min 1600, max 3000)
     const m2Match = text.match(/M2\s*[:=]?\s*(\d+)/);
     if (m2Match) {
       const val = parseInt(m2Match[1], 10);
-      if (val >= 1000 && val <= 3000) {
-        setTestM2(Math.max(1600, Math.min(2600, val)));
+      if (val >= 1000 && val <= 3500) {
+        setTestM2(Math.max(1600, Math.min(3000, val)));
       }
     }
 
@@ -118,7 +174,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
       const v2 = parseInt(posMatch[2], 10);
       const v3 = parseInt(posMatch[3], 10);
       if (v1 >= 1000 && v1 <= 3000) setTestM1(Math.max(1500, Math.min(2500, v1)));
-      if (v2 >= 1000 && v2 <= 3000) setTestM2(Math.max(1600, Math.min(2600, v2)));
+      if (v2 >= 1000 && v2 <= 3500) setTestM2(Math.max(1600, Math.min(3000, v2)));
       if (v3 >= 1000 && v3 <= 3000) setTestM3(Math.max(1500, Math.min(2500, v3)));
     }
 
@@ -140,7 +196,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
   // Sync sliders when current motor pulses from simulation/sequencer update
   useEffect(() => {
     if (currentM1 >= 1500 && currentM1 <= 2500) setTestM1(currentM1);
-    if (currentM2 >= 1600 && currentM2 <= 2600) setTestM2(currentM2);
+    if (currentM2 >= 1600 && currentM2 <= 3000) setTestM2(currentM2);
     if (currentM3 >= 1500 && currentM3 <= 2500) setTestM3(currentM3);
   }, [currentM1, currentM2, currentM3]);
 
@@ -471,38 +527,50 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                 </div>
               )}
               {/* Stamp Rack Letter Reach Calibration (A-Z) */}
-              <div className="p-3 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-2.5">
+              <div className="p-3 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                     <span>Stamp Rack Letter Reach Calibration (A–Z)</span>
                   </div>
                   <span className="text-[10px] text-amber-400/90 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                    M2 Base Rotates 5° per Letter
+                    M1 &amp; M3 Held Constant: 1500µs | Base Yaw M2 Calibrated
                   </span>
                 </div>
 
                 {/* Calibration Rule Legend */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
-                  <div className="p-2 rounded bg-sky-950/40 border border-sky-500/30 text-sky-200">
-                    <span className="font-bold text-sky-300">Inner Tier (A–M):</span>
-                    <div className="text-[10px] text-sky-300/80 mt-0.5">
-                      M1: <span className="font-bold text-white">1900µs</span> &bull; M2 (Base): <span className="text-amber-300 font-semibold">variable (5°/letter)</span> &bull; M3 (Elbow): <span className="font-bold text-white">1670µs</span>
-                    </div>
+                <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 text-[11px] font-mono space-y-1.5">
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span>
+                      <strong className="text-emerald-400">M1 (Shoulder)</strong> = 1500µs (1.5ms constant) &bull;{' '}
+                      <strong className="text-sky-400">M3 (Elbow)</strong> = 1500µs (1.5ms constant)
+                    </span>
+                    <span className="text-amber-400 font-semibold">
+                      Base Yaw (M2): 1750µs – 2425µs (Max: 3000µs)
+                    </span>
                   </div>
-                  <div className="p-2 rounded bg-purple-950/40 border border-purple-500/30 text-purple-200">
-                    <span className="font-bold text-purple-300">Outer Tier (N–Z):</span>
-                    <div className="text-[10px] text-purple-300/80 mt-0.5">
-                      M1: <span className="font-bold text-white">1910µs</span> &bull; M2 (Base): <span className="text-amber-300 font-semibold">variable (5°/letter)</span> &bull; M3 (Elbow): <span className="font-bold text-white">1810µs</span>
-                    </div>
+                  <div className="text-[10px] text-slate-400 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1 pt-1 border-t border-slate-800/80">
+                    <span>Z &amp; M: <strong className="text-amber-300">1750ms</strong></span>
+                    <span>Y &amp; L: <strong className="text-amber-300">1810ms</strong></span>
+                    <span>X &amp; K: <strong className="text-amber-300">1890ms</strong></span>
+                    <span>W &amp; J: <strong className="text-amber-300">1930ms</strong></span>
+                    <span>V &amp; I: <strong className="text-amber-300">1990ms</strong></span>
+                    <span>U &amp; H: <strong className="text-amber-300">2050ms</strong></span>
+                    <span>T &amp; G: <strong className="text-amber-300">2110ms</strong></span>
+                    <span>S &amp; F: <strong className="text-amber-300">2170ms</strong></span>
+                    <span>R &amp; E: <strong className="text-amber-300">2220ms</strong></span>
+                    <span>Q &amp; D: <strong className="text-amber-300">2270ms</strong></span>
+                    <span>P &amp; C: <strong className="text-amber-300">2230ms</strong></span>
+                    <span>O &amp; B: <strong className="text-amber-300">2360ms</strong></span>
+                    <span>N &amp; A: <strong className="text-amber-300">2425ms</strong></span>
                   </div>
                 </div>
 
                 {/* Letter Grid: Inner Tier A-M */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-sky-400 font-mono">
-                    <span>Inner Rack [A–M] (M1: 1900µs | M3 Elbow: 1670µs | M2 Base: 5°/letter):</span>
-                    <span>5° step &bull; Center: G (0°)</span>
+                    <span>Inner Rack [A–M] &bull; M1: 1500µs | M3: 1500µs | Base Yaw M2:</span>
+                    <span className="text-slate-400">Click button to position arm</span>
                   </div>
                   <div className="grid grid-cols-13 gap-1">
                     {'ABCDEFGHIJKLM'.split('').map((char) => {
@@ -525,11 +593,11 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                               ? 'bg-amber-500 text-slate-950 font-black border-amber-300 shadow-md ring-1 ring-amber-400'
                               : 'bg-slate-900/90 hover:bg-sky-900/40 text-slate-200 border-slate-700/80 hover:border-sky-500/50'
                           }`}
-                          title={`Letter ${char}: M1=${calib.m1_us}µs (Shldr), M2=${calib.m2_us}µs (Base ${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°), M3=${calib.m3_us}µs (Elbow)`}
+                          title={`Letter ${char}: M1=1500µs (Shldr), Base Yaw M2=${calib.m2_us}µs, M3=1500µs (Elbow)`}
                         >
                           <span className="text-xs font-bold leading-none">{char}</span>
-                          <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-80">
-                            {calib.angleDeg > 0 ? `+${calib.angleDeg}°` : `${calib.angleDeg}°`}
+                          <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-90 font-semibold">
+                            {calib.m2_us}
                           </span>
                         </button>
                       );
@@ -540,8 +608,8 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                 {/* Letter Grid: Outer Tier N-Z */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-purple-400 font-mono">
-                    <span>Outer Rack [N–Z] (M1: 1910µs | M3 Elbow: 1810µs | M2 Base: 5°/letter):</span>
-                    <span>5° step &bull; Center: T (0°)</span>
+                    <span>Outer Rack [N–Z] &bull; M1: 1500µs | M3: 1500µs | Base Yaw M2:</span>
+                    <span className="text-slate-400">Click button to position arm</span>
                   </div>
                   <div className="grid grid-cols-13 gap-1">
                     {'NOPQRSTUVWXYZ'.split('').map((char) => {
@@ -564,11 +632,11 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                               ? 'bg-amber-500 text-slate-950 font-black border-amber-300 shadow-md ring-1 ring-amber-400'
                               : 'bg-slate-900/90 hover:bg-purple-900/40 text-slate-200 border-slate-700/80 hover:border-purple-500/50'
                           }`}
-                          title={`Letter ${char}: M1=${calib.m1_us}µs (Shldr), M2=${calib.m2_us}µs (Base ${calib.angleDeg > 0 ? '+' : ''}${calib.angleDeg}°), M3=${calib.m3_us}µs (Elbow)`}
+                          title={`Letter ${char}: M1=1500µs (Shldr), Base Yaw M2=${calib.m2_us}µs, M3=1500µs (Elbow)`}
                         >
                           <span className="text-xs font-bold leading-none">{char}</span>
-                          <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-80">
-                            {calib.angleDeg > 0 ? `+${calib.angleDeg}°` : `${calib.angleDeg}°`}
+                          <span className="text-[8px] font-mono leading-tight mt-0.5 opacity-90 font-semibold">
+                            {calib.m2_us}
                           </span>
                         </button>
                       );
@@ -576,7 +644,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </div>
                 </div>
 
-                {/* Calibrated Target Information Card */}
+                {/* Selected Letter Reach Summary */}
                 {(() => {
                   const currentCalib = getStampRackCalibration(selectedLetter || 'A');
                   return (
@@ -586,13 +654,11 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                           Letter '{currentCalib.letter}'
                         </span>
                         <div className="text-[11px] text-slate-300 space-x-2">
-                          <span>Tier: <strong className="text-slate-100">{currentCalib.tier.toUpperCase()}</strong></span>
+                          <span>M1: <strong className="text-emerald-400">1500µs (constant)</strong></span>
                           <span>&bull;</span>
-                          <span>M1 (Shoulder): <strong className="text-emerald-400">{currentCalib.m1_us}µs</strong></span>
+                          <span>Base Yaw M2: <strong className="text-amber-400">{currentCalib.m2_us}µs ({(currentCalib.m2_us / 1000).toFixed(2)}ms)</strong></span>
                           <span>&bull;</span>
-                          <span>M2 (Base Yaw): <strong className="text-amber-400">{currentCalib.m2_us}µs ({currentCalib.angleDeg > 0 ? `+${currentCalib.angleDeg}` : currentCalib.angleDeg}°)</strong></span>
-                          <span>&bull;</span>
-                          <span>M3 (Elbow): <strong className="text-sky-400">{currentCalib.m3_us}µs</strong></span>
+                          <span>M3: <strong className="text-sky-400">1500µs (constant)</strong></span>
                         </div>
                       </div>
 
@@ -613,6 +679,132 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     </div>
                   );
                 })()}
+
+                {/* PUB and PBB Sequence Buttons */}
+                <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      Sequence Controllers: PUB &amp; PBB
+                    </span>
+                    {runningSequence && (
+                      <button
+                        onClick={handleStopSequence}
+                        className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-[10px] font-bold cursor-pointer"
+                      >
+                        Stop Sequence
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Button 1: PUB */}
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      runningSequence === 'PUB'
+                        ? 'bg-purple-950/60 border-purple-500 shadow-md ring-1 ring-purple-400'
+                        : 'bg-slate-900/90 border-purple-500/30 hover:border-purple-500/60'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={Boolean(runningSequence)}
+                            onClick={() => handleRunSequence('PUB')}
+                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-sm tracking-wide rounded-lg flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>PUB</span>
+                          </button>
+                          <div>
+                            <div className="text-[11px] font-bold text-purple-300">Pick Upper Bay</div>
+                            <div className="text-[9px] text-purple-400/80 font-mono">Outer Rack N–Z sequence (7 steps)</div>
+                          </div>
+                        </div>
+
+                        {runningSequence === 'PUB' && (
+                          <span className="text-[10px] font-mono text-purple-300 animate-pulse bg-purple-900/60 px-2 py-0.5 rounded border border-purple-400">
+                            Running step {sequenceStepIndex + 1}/7
+                          </span>
+                        )}
+                      </div>
+
+                      {/* PUB Sequence Stepper Chips */}
+                      <div className="flex flex-wrap gap-1 text-[10px] font-mono">
+                        {PUB_SEQUENCE.map((s, idx) => {
+                          const isCurrent = runningSequence === 'PUB' && sequenceStepIndex === idx;
+                          const isDone = runningSequence === 'PUB' && sequenceStepIndex > idx;
+                          return (
+                            <span
+                              key={idx}
+                              className={`px-1.5 py-0.5 rounded border ${
+                                isCurrent
+                                  ? 'bg-purple-500 text-white font-bold border-purple-300 ring-1 ring-purple-400 animate-pulse'
+                                  : isDone
+                                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                  : 'bg-slate-950 text-slate-400 border-slate-800'
+                              }`}
+                            >
+                              {s.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Button 2: PBB */}
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      runningSequence === 'PBB'
+                        ? 'bg-sky-950/60 border-sky-500 shadow-md ring-1 ring-sky-400'
+                        : 'bg-slate-900/90 border-sky-500/30 hover:border-sky-500/60'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={Boolean(runningSequence)}
+                            onClick={() => handleRunSequence('PBB')}
+                            className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-black text-sm tracking-wide rounded-lg flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>PBB</span>
+                          </button>
+                          <div>
+                            <div className="text-[11px] font-bold text-sky-300">Pick Bottom Bay</div>
+                            <div className="text-[9px] text-sky-400/80 font-mono">Inner Rack A–M sequence (4 steps)</div>
+                          </div>
+                        </div>
+
+                        {runningSequence === 'PBB' && (
+                          <span className="text-[10px] font-mono text-sky-300 animate-pulse bg-sky-900/60 px-2 py-0.5 rounded border border-sky-400">
+                            Running step {sequenceStepIndex + 1}/4
+                          </span>
+                        )}
+                      </div>
+
+                      {/* PBB Sequence Stepper Chips */}
+                      <div className="flex flex-wrap gap-1 text-[10px] font-mono">
+                        {PBB_SEQUENCE.map((s, idx) => {
+                          const isCurrent = runningSequence === 'PBB' && sequenceStepIndex === idx;
+                          const isDone = runningSequence === 'PBB' && sequenceStepIndex > idx;
+                          return (
+                            <span
+                              key={idx}
+                              className={`px-1.5 py-0.5 rounded border ${
+                                isCurrent
+                                  ? 'bg-sky-500 text-white font-bold border-sky-300 ring-1 ring-sky-400 animate-pulse'
+                                  : isDone
+                                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                  : 'bg-slate-950 text-slate-400 border-slate-800'
+                              }`}
+                            >
+                              {s.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -639,41 +831,67 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                   </p>
                 </div>
 
-                {/* Quick Actions (Home Arm: M1 1500, M2 2100, M3 1500, E-Stop) */}
-                <div className="grid grid-cols-2 gap-2">
+                {/* Quick Actions (Home Arm, E-Stop, PUB, PBB) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     onClick={handleHomeArm}
-                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer"
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer"
                     title="Home Arm: M1 1500µs, M2 2100µs, M3 1500µs"
                   >
-                    <RotateCcw className="w-4 h-4 text-sky-400" />
-                    <div className="flex flex-col items-start">
+                    <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
+                    <div className="flex flex-col items-start leading-tight">
                       <span>Home Arm</span>
-                      <span className="text-[9px] text-sky-400/80 font-mono">M1:1500 M2:2100 M3:1500</span>
+                      <span className="text-[8px] text-sky-400/80 font-mono">1500/2100/1500</span>
                     </div>
                   </button>
 
                   <button
                     onClick={handleEmergencyStop}
-                    className="p-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer"
+                    className="p-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer"
                     title="Detaches all servos immediately"
                   >
-                    <ShieldAlert className="w-4 h-4 text-rose-400" />
-                    <div className="flex flex-col items-start">
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                    <div className="flex flex-col items-start leading-tight">
                       <span>E-STOP</span>
-                      <span className="text-[9px] text-rose-400/80 font-mono">Detach Servos</span>
+                      <span className="text-[8px] text-rose-400/80 font-mono">Detach Servos</span>
+                    </div>
+                  </button>
+
+                  <button
+                    disabled={Boolean(runningSequence)}
+                    onClick={() => handleRunSequence('PUB')}
+                    className="p-2 bg-purple-950/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/40 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                    title="Run PUB sequence (Pick Upper Bay)"
+                  >
+                    <Play className="w-3.5 h-3.5 text-purple-400 fill-current" />
+                    <div className="flex flex-col items-start leading-tight">
+                      <span className="font-bold">PUB</span>
+                      <span className="text-[8px] text-purple-400/80 font-mono">Upper (7 steps)</span>
+                    </div>
+                  </button>
+
+                  <button
+                    disabled={Boolean(runningSequence)}
+                    onClick={() => handleRunSequence('PBB')}
+                    className="p-2 bg-sky-950/50 hover:bg-sky-900/60 text-sky-200 border border-sky-500/40 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                    title="Run PBB sequence (Pick Bottom Bay)"
+                  >
+                    <Play className="w-3.5 h-3.5 text-sky-400 fill-current" />
+                    <div className="flex flex-col items-start leading-tight">
+                      <span className="font-bold">PBB</span>
+                      <span className="text-[8px] text-sky-400/80 font-mono">Bottom (4 steps)</span>
                     </div>
                   </button>
                 </div>
 
-                {/* Manual Servo Pulse Sliders: M1/M3 (1500us to 2500us), M2 Base Yaw (1600us to 2600us, Center 2100us) */}
+                {/* Manual Servo Pulse Sliders: M1/M3 (1500us to 2500us), M2 Base Yaw (1600us to 3000us, Center 2100us) */}
                 <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-200">Manual Servo Pulse Testing</span>
-                    <span className="text-[10px] text-slate-400 font-mono">[M1/M3: 1500–2500µs | M2: 1600–2600µs]</span>
+                    <span className="text-[10px] text-slate-400 font-mono">[M1/M3: 1500–2500µs | M2: 1600–3000µs]</span>
                   </div>
 
-                  {/* Motor 1: Shoulder Elevation (Flipped: M1 is Shoulder in real life) */}
+                  {/* Motor 1: Shoulder Elevation */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-emerald-300 font-medium">M1 (Shoulder θ₁)</span>
@@ -707,7 +925,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     </div>
                   </div>
 
-                  {/* Motor 2: Base Yaw (M2 is Base in real life, min is 1600us, max is 2600us, center is 2100us) */}
+                  {/* Motor 2: Base Yaw (min 1600us, max 3000us, center 2100us) */}
                   <div className="space-y-1 pt-2 border-t border-slate-900">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-amber-300 font-medium">M2 (Base Yaw θ₀)</span>
@@ -718,7 +936,7 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     <input
                       type="range"
                       min="1600"
-                      max="2600"
+                      max="3000"
                       step="5"
                       value={testM2}
                       onChange={(e) => {
@@ -730,16 +948,19 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                     />
                     <div className="flex justify-between text-[9px] text-slate-500 font-mono">
                       <button onClick={() => { setTestM2(1600); handleSendSingleMotor(2, 1600); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-400">
-                        1600µs (-45° Min)
+                        1600µs (Min)
                       </button>
-                      <button onClick={() => { setTestM2(2000); handleSendSingleMotor(2, 2000); }} className="hover:text-amber-300 cursor-pointer">
-                        2000µs (-9°)
+                      <button onClick={() => { setTestM2(1750); handleSendSingleMotor(2, 1750); }} className="hover:text-amber-300 cursor-pointer">
+                        1750µs (Z/M)
                       </button>
                       <button onClick={() => { setTestM2(2100); handleSendSingleMotor(2, 2100); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-300">
                         2100µs (0° Center)
                       </button>
-                      <button onClick={() => { setTestM2(2600); handleSendSingleMotor(2, 2600); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-400">
-                        2600µs (+45° Max)
+                      <button onClick={() => { setTestM2(2425); handleSendSingleMotor(2, 2425); }} className="hover:text-amber-300 cursor-pointer">
+                        2425µs (N/A)
+                      </button>
+                      <button onClick={() => { setTestM2(3000); handleSendSingleMotor(2, 3000); }} className="hover:text-amber-300 cursor-pointer font-semibold text-amber-400">
+                        3000µs (Max / 3.0ms)
                       </button>
                     </div>
                   </div>
