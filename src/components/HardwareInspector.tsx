@@ -116,23 +116,50 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
         setSequenceStepIndex(i);
         const step = seq[i];
 
-        if (step.motor === 'M1') setTestM1(step.pulseUs);
-        if (step.motor === 'M2') setTestM2(step.pulseUs);
-        if (step.motor === 'M3') setTestM3(step.pulseUs);
+        // Special condition for PBB: intermediate values ONLY when transitioning M3 1.890ms -> M3 1.5ms after M1 1760
+        if (seqType === 'PBB' && i === 2) {
+          const startVal = 1890;
+          const targetVal = 1500;
+          const numSubSteps = 20;
+          const subStepDelay = 50; // 20 * 50ms = 1.0s smooth transition
 
-        const cmd = `${step.motor} ${step.pulseUs}`;
-        appendTerminal('tx', `[${seqType} Step ${i + 1}/${seq.length}] ${cmd} (${step.label})`);
-        if (isConnected) {
-          await serialManager.sendCommand(cmd);
+          appendTerminal('tx', `[PBB Step 3/4] Intermediate transition: M3 ${startVal}µs → ${targetVal}µs (${step.label})`);
+          addLog(`[PBB Step 3] Moving M3 from 1.890ms (1890µs) to 1.5ms (1500µs) with intermediate values...`, 'info');
+
+          for (let s = 1; s <= numSubSteps; s++) {
+            if (abortSequenceRef.current) break;
+            const subPulse = Math.round(startVal + ((targetVal - startVal) * s) / numSubSteps);
+            setTestM3(subPulse);
+            if (isConnected) {
+              await serialManager.sendCommand(`M3 ${subPulse}`);
+            }
+            await new Promise((res) => setTimeout(res, subStepDelay));
+          }
+          setTestM3(targetVal);
+          if (isConnected) {
+            await serialManager.sendCommand(`M3 ${targetVal}`);
+          }
+          addLog(`[PBB Step 3] M3 reached 1.5ms (${targetVal}µs)`, 'info');
+        } else {
+          // All other steps are direct without intermediate values
+          if (step.motor === 'M1') setTestM1(step.pulseUs);
+          if (step.motor === 'M2') setTestM2(step.pulseUs);
+          if (step.motor === 'M3') setTestM3(step.pulseUs);
+
+          const cmd = `${step.motor} ${step.pulseUs}`;
+          appendTerminal('tx', `[${seqType} Step ${i + 1}/${seq.length}] ${cmd} (${step.label})`);
+          if (isConnected) {
+            await serialManager.sendCommand(cmd);
+          }
+          addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
         }
-        addLog(`[${seqType} Step ${i + 1}/${seq.length}] ${step.label} (${step.pulseUs}µs)`, 'info');
 
         // Custom delay or default 600ms
         const delay = step.delayMs ?? 600;
         if (seqType === 'PBB') {
-          // Explicit 2-second wait between each command for PBB (no intermediate values)
+          // Explicit 2-second wait between each command for PBB
           appendTerminal('sys', `[PBB Step ${i + 1}/${seq.length}: Waiting 2 seconds (2000ms) before next command...]`);
-          addLog(`[PBB Step ${i + 1}] Executed ${cmd} — waiting 2 seconds before next command...`, 'info');
+          addLog(`[PBB Step ${i + 1}] Completed — waiting 2 seconds before next command...`, 'info');
         } else if (seqType === 'STAMP' && i === 2) {
           // Explicit 2-second wait between M1 2.000ms and M1 1.500ms
           appendTerminal('sys', `[STAMP Step 3: Waiting 2 seconds (2000ms) between M1 2.000ms and M1 1.500ms...]`);
@@ -918,14 +945,14 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                             <span>PBB</span>
                           </button>
                           <div>
-                            <div className="text-[11px] font-bold text-sky-300">PBB Sequence (Direct Values)</div>
-                            <div className="text-[9px] text-sky-400/80 font-mono">M3 1890 &rarr; M1 1760 &rarr; M3 1.5 &rarr; M1 2 (wait 2s between each)</div>
+                            <div className="text-[11px] font-bold text-sky-300">PBB Sequence</div>
+                            <div className="text-[9px] text-sky-400/80 font-mono">M3 1890 &rarr; M1 1760 &rarr; M3 1.5 (intermediate values) &rarr; M1 2 (2s wait)</div>
                           </div>
                         </div>
 
                         {runningSequence === 'PBB' && (
                           <span className="text-[10px] font-mono text-sky-300 animate-pulse bg-sky-900/60 px-2 py-0.5 rounded border border-sky-400">
-                            Step {sequenceStepIndex + 1}/4 (2s wait)
+                            {sequenceStepIndex === 2 ? 'Step 3: M3 1.890ms → 1.5ms (intermediate values)...' : `Step ${sequenceStepIndex + 1}/4 (2s wait)`}
                           </span>
                         )}
                       </div>
@@ -945,9 +972,10 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({
                                   ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
                                   : 'bg-slate-950 text-slate-400 border-slate-800'
                               }`}
-                              title={`${s.label} (waits 2s)`}
+                              title={idx === 2 ? 'M3: smooth intermediate transition from 1.890ms to 1.5ms' : `${s.label} (waits 2s)`}
                             >
-                              {s.label} (2s)
+                              {s.label}
+                              {idx === 2 ? ' (intermediate)' : ' (2s)'}
                             </span>
                           );
                         })}
@@ -1620,12 +1648,19 @@ void loop() {
       Serial.println("OK: PUB/PUT sequence complete");
     }
     else if (cmd == "PBB") {
-      // PBB sequence: direct values without intermediate steps, 2 seconds wait between each command
+      // Step 1: M3 1890 direct
       servo3.writeMicroseconds(1890); delay(2000);
+      // Step 2: M1 1760 direct
       servo1.writeMicroseconds(1760); delay(2000);
+      // Step 3: Intermediate values ONLY when transitioning M3 1.890ms -> 1.5ms after M1 1760
+      for (int pos = 1890; pos >= 1500; pos -= 15) {
+        servo3.writeMicroseconds(pos);
+        delay(50);
+      }
       servo3.writeMicroseconds(1500); delay(2000);
+      // Step 4: M1 2000 direct
       servo1.writeMicroseconds(2000); delay(2000);
-      Serial.println("OK: PBB sequence complete (direct values, 2s wait)");
+      Serial.println("OK: PBB sequence complete (intermediate values on M3 1890->1500 only)");
     }
     else if (cmd.startsWith("M1 ")) servo1.writeMicroseconds(cmd.substring(3).toInt());
     else if (cmd.startsWith("M2 ")) servo2.writeMicroseconds(cmd.substring(3).toInt());

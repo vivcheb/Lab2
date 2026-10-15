@@ -108,9 +108,25 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         setSeqStepIdx(i);
         const step = seq[i];
         const cmd = `${step.motor} ${step.pulseUs}`;
-
-        if (serialManager.getIsConnected()) {
-          await serialManager.sendCommand(cmd);
+        if (seqType === 'PBB' && i === 2) {
+          // Intermediate values ONLY for M3 1.890ms -> M3 1.5ms after M1 1760
+          const startVal = 1890;
+          const targetVal = 1500;
+          const numSubSteps = 20;
+          for (let s = 1; s <= numSubSteps; s++) {
+            const subPulse = Math.round(startVal + ((targetVal - startVal) * s) / numSubSteps);
+            if (serialManager.getIsConnected()) {
+              await serialManager.sendCommand(`M3 ${subPulse}`);
+            }
+            await new Promise((res) => setTimeout(res, 50));
+          }
+          if (serialManager.getIsConnected()) {
+            await serialManager.sendCommand(`M3 ${targetVal}`);
+          }
+        } else {
+          if (serialManager.getIsConnected()) {
+            await serialManager.sendCommand(cmd);
+          }
         }
 
         // Custom delay (2000ms for PBB 2s wait between commands, 2000ms for STAMP hold, 3000ms for PUB/PUT wait)
@@ -309,7 +325,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   disabled={Boolean(runningSeq) || isAnimating}
                   onClick={() => handleRunSeq('PBB')}
                   className="py-1.5 px-1 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded flex items-center justify-center gap-1 text-[11px] transition cursor-pointer shadow-xs"
-                  title="PBB: M3 1890 -> M1 1760 -> M3 1.5 -> M1 2 (wait 2s between each command)"
+                  title="PBB: M3 1890 -> M1 1760 -> M3 1.5 (intermediate values) -> M1 2 (wait 2s between each command)"
                 >
                   <Play className="w-2.5 h-2.5 fill-current" />
                   <span>{runningSeq === 'PBB' ? `PBB (${seqStepIdx + 1}/4)` : 'PBB'}</span>
